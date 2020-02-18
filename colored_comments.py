@@ -18,7 +18,7 @@ class ColorCommentsEventListener(sublime_plugin.EventListener):
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         get_settings()
-        regions = self.view.find_by_selector("comment")
+        regions = self.view.find_by_selector("comment - punctuation.definition.comment")
         self.ApplyDecorations(generate_identifier_expression(), regions)
         return
 
@@ -32,7 +32,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
         for region in regions:
             for reg in self.view.split_by_newlines(region):
-                matches = identifier_regex.search(self.view.substr(reg))
+                matches = identifier_regex.search(self.view.substr(reg).strip())
                 if not matches:
                     continue
 
@@ -47,7 +47,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
                 decorations = TAG_MAP[value]
 
-                # * Default to outline
+                # adssd * Default to outline
                 flags = sublime.DRAW_NO_FILL
                 if "style" not in decorations.keys():
                     flags |= sublime.DRAW_SOLID_UNDERLINE
@@ -74,9 +74,10 @@ def generate_identifier_expression():
     for tag in TAG_MAP:
         identifiers.append(TAG_MAP[tag]["identifier"])
 
-    identifier_regex = "("
+    identifier_regex = "^("
     identifier_regex += "|".join(escape_regex(ident) for ident in identifiers)
     identifier_regex += ")+(?:.*)"
+    print(identifier_regex)
     return identifier_regex
 
 
