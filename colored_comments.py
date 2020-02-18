@@ -5,6 +5,7 @@ import re
 
 
 TAG_MAP = dict()
+SETTINGS = dict()
 
 
 class ColorCommentsEventListener(sublime_plugin.EventListener):
@@ -17,28 +18,39 @@ class ColorCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        get_settings()
+        SETTINGS = get_settings()
         regions = self.view.find_by_selector("comment - punctuation.definition.comment")
         self.ApplyDecorations(generate_identifier_expression(), regions)
         return
 
     def ApplyDecorations(self, delimiter, regions):
-        global TAG_MAP
+        global TAG_MAP, SETTINGS
         to_decorate = {"BAD_ENTRY_COLORED_COMMENTS": []}
         identifier_regex = re.compile(delimiter)
 
         for tag in TAG_MAP:
             to_decorate[tag] = []
 
+        previous_match = ""
         for region in regions:
             for reg in self.view.split_by_newlines(region):
-                matches = identifier_regex.search(self.view.substr(reg).strip())
+                reg_text = self.view.substr(reg).strip()
+                matches = identifier_regex.search(reg_text)
                 if not matches:
+                    if (
+                        SETTINGS.get("continued_matching", True)
+                        and previous_match != ""
+                        and reg_text[0] == "-"
+                    ):
+                        to_decorate[previous_match] += [reg]
+                    else:
+                        previous_match = ""
                     continue
 
                 for tag in TAG_MAP:
                     if TAG_MAP[tag]["identifier"] != matches.group(1):
                         continue
+                    previous_match = tag
                     to_decorate[tag] += [reg]
 
             for value in to_decorate:
@@ -77,7 +89,6 @@ def generate_identifier_expression():
     identifier_regex = "^("
     identifier_regex += "|".join(escape_regex(ident) for ident in identifiers)
     identifier_regex += ")+[ \t]+(?:.*)"
-    print(identifier_regex)
     return identifier_regex
 
 
