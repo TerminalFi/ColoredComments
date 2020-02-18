@@ -47,7 +47,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
                 decorations = TAG_MAP[value]
 
-                # adssd * Default to outline
+                # * Default to outline
                 flags = sublime.DRAW_NO_FILL
                 if "style" not in decorations.keys():
                     flags |= sublime.DRAW_SOLID_UNDERLINE
@@ -76,7 +76,7 @@ def generate_identifier_expression():
 
     identifier_regex = "^("
     identifier_regex += "|".join(escape_regex(ident) for ident in identifiers)
-    identifier_regex += ")+(?:.*)"
+    identifier_regex += ")+[ \t]+(?:.*)"
     print(identifier_regex)
     return identifier_regex
 
