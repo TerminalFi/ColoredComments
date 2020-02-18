@@ -5,7 +5,6 @@ import re
 
 
 TAG_MAP = dict()
-SETTINGS = dict()
 
 
 class ColorCommentsEventListener(sublime_plugin.EventListener):
@@ -24,7 +23,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         return
 
     def ApplyDecorations(self, delimiter, regions):
-        global TAG_MAP, SETTINGS
+        global TAG_MAP
         to_decorate = {"BAD_ENTRY_COLORED_COMMENTS": []}
         identifier_regex = re.compile(delimiter)
 
@@ -37,8 +36,11 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 reg_text = self.view.substr(reg).strip()
                 matches = identifier_regex.search(reg_text)
                 if not matches:
+                    if len(reg_text) == 0:
+                        continue
+
                     if (
-                        SETTINGS.get("continued_matching", True)
+                        get_settings().get("continued_matching")
                         and previous_match != ""
                         and reg_text[0] == "-"
                     ):
