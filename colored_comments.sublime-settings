@@ -1,6 +1,7 @@
 {
     "multiline": false,
     "tags": {
+        // * style can be either "underline" or "outline"
     "Important" : {
         "identifier": "*",
         "scope": "region.purplish",
@@ -47,6 +48,10 @@
         "javascript":
         {
             "single": "#"
+        },
+        "json":
+        {
+            "single": "//"
         },
         "python":
         {
