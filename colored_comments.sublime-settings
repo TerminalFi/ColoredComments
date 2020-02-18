@@ -1,7 +1,5 @@
 {
-    "multiline": false,
     "tags": {
-        // * style can be either "underline" or "outline"
     "Important" : {
         "identifier": "*",
         "scope": "region.purplish",
@@ -22,55 +20,5 @@
         "scope": "region.bluish",
         "style": "underline"
     }
-},
-    "syntax":
-    {
-        "actionscript":
-        {
-            "single": "//",
-            "multi":["/*", "*/"]
-        },
-        "applescript":
-        {
-            "single": "--",
-            "multi":["(*", "*)"]
-        },
-        "c":
-        {
-            "single": "//",
-            "multi":["/*", "*/"]
-        },
-        "c++":
-        {
-            "single": "//",
-            "multi":["/*", "*/"]
-        },
-        "javascript":
-        {
-            "single": "#"
-        },
-        "json":
-        {
-            "single": "//"
-        },
-        "python":
-        {
-            "single": "#",
-            "multi": ["\"\"\"", "\"\"\""]
-        },
-        "go":
-        {
-            "single": "//",
-            "multi": ["/*", "*/"]
-        },
-        "php":
-        {
-            "single": "#",
-            "multi": ["/*", "*/"]
-        },
-        "yaml":
-        {
-            "single": "#"
-        }
-    }
+}
 }
