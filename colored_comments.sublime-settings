@@ -1,41 +1,71 @@
 {
-    // The colors to highlight texts are specified by a list of theme scope names,
-    // and HighlightWords uses this list in circular order.
-    "colors_by_scope": [
-        "string",
-        "entity.name.class",
-        "variable.parameter",
-        "invalid.deprecated",
-        "invalid",
-        "support.function"
-    ],
-    "whole_word": false,
-    "use_regex": false,
-    "ignore_case": false,
-
-    // "flag": 0 - regex, 1 - literal (default), 2 - regex and ignore case, 3 - literal and ignore case
-    "tags": [
-    {
-        "name": "Important",
+    "multiline": false,
+    "tags": {
+    "Important" : {
         "identifier": "*",
-        "color": "support.function"
+        "scope": "region.purplish",
+        "style": "underline"
     },
-    {
-        "name": "Deprecated",
+    "Deprecated" : {
         "identifier": "!",
-        "color": "support.function",
-        "flag": 2
+        "scope": "region.redish",
+        "style": "underline"
     },
-    {
-        "name": "Question",
+    "Question" : {
         "identifier": "?",
-        "color": "support.function",
-        "flag": 2
+        "scope": "region.cyanish",
+        "style": "underline"
     },
-    {
-        "name": "TODO",
+    "TODO" : {
         "identifier": "TODO",
-        "color": "support.function",
-        "flag": 2
-    }]
+        "scope": "region.bluish",
+        "style": "underline"
+    }
+},
+    "syntax":
+    {
+        "actionscript":
+        {
+            "single": "//",
+            "multi":["/*", "*/"]
+        },
+        "applescript":
+        {
+            "single": "--",
+            "multi":["(*", "*)"]
+        },
+        "c":
+        {
+            "single": "//",
+            "multi":["/*", "*/"]
+        },
+        "c++":
+        {
+            "single": "//",
+            "multi":["/*", "*/"]
+        },
+        "javascript":
+        {
+            "single": "#"
+        },
+        "python":
+        {
+            "single": "#",
+            "multi": ["\"\"\"", "\"\"\""]
+        },
+        "go":
+        {
+            "single": "//",
+            "multi": ["/*", "*/"]
+        },
+        "php":
+        {
+            "single": "#",
+            "multi": ["/*", "*/"]
+        },
+        "yaml":
+        {
+            "single": "#"
+        }
+    }
 }
