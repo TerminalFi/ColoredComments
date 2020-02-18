@@ -14,7 +14,7 @@ class ColorCommentsEventListener(sublime_plugin.EventListener):
     def on_modified(self, view):
         view.run_command("colored_comments")
 
-
+        
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         SETTINGS = get_settings()
