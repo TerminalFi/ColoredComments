@@ -1,6 +1,5 @@
 import sublime
 import sublime_plugin
-import os
 import re
 
 
@@ -14,10 +13,10 @@ class ColorCommentsEventListener(sublime_plugin.EventListener):
     def on_modified(self, view):
         view.run_command("colored_comments")
 
-        
+
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        SETTINGS = get_settings()
+        get_settings()
         regions = self.view.find_by_selector("comment - punctuation.definition.comment")
         self.ApplyDecorations(generate_identifier_expression(), regions)
         return
