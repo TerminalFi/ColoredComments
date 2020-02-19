@@ -20,7 +20,7 @@
                 "command": "open_file",
                 "args":
                 {
-                    "file": "${packages}/ColoredComments/colored_comments.sublime-settings"
+                    "file": "${packages}/User/colored_comments.sublime-settings"
                 },
                 "caption": "Settings – User"
             }]
