@@ -1,25 +1,30 @@
 {
     "continued_matching": true,
-    "tags": {
-    "Important" : {
-        "identifier": "*",
-        "scope": "region.purplish",
-        "style": "underline"
-    },
-    "Deprecated" : {
-        "identifier": "!",
-        "scope": "region.redish",
-        "style": "underline"
-    },
-    "Question" : {
-        "identifier": "?",
-        "scope": "region.cyanish",
-        "style": "underline"
-    },
-    "TODO" : {
-        "identifier": "TODO",
-        "scope": "region.bluish",
-        "style": "underline"
+    "tags":
+    {
+        "Important":
+        {
+            "identifier": "*",
+            "scope": "region.purplish",
+            "style": "underline"
+        },
+        "Deprecated":
+        {
+            "identifier": "!",
+            "scope": "region.redish",
+            "style": "underline"
+        },
+        "Question":
+        {
+            "identifier": "?",
+            "scope": "region.cyanish",
+            "style": "underline"
+        },
+        "TODO":
+        {
+            "identifier": "TODO",
+            "scope": "region.bluish",
+            "style": "underline"
+        }
     }
-}
 }
