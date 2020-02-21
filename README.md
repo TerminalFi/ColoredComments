@@ -12,3 +12,5 @@ Add new tags easily with the following format
         "style": "underline"
     }
     ```
+
+Supported values for "style" are currently: "underline", "stippled_underline"
