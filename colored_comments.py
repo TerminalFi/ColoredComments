@@ -68,7 +68,9 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 elif decorations["style"] == "underline":
                     flags |= sublime.DRAW_SOLID_UNDERLINE
                     flags |= sublime.DRAW_NO_OUTLINE
-
+                elif decorations["style"] == "stippled_underline":
+                    flags |= sublime.DRAW_STIPPLED_UNDERLINE
+                    flags |= sublime.DRAW_NO_OUTLINE
                 self.view.add_regions(
                     value, to_decorate[value], decorations["scope"], "dot", flags
                 )
