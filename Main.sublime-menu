@@ -9,20 +9,13 @@
             "caption": "Colored Comments",
             "children": [
             {
-                "command": "open_file",
+                "caption": "Settings",
+                "command": "edit_settings",
                 "args":
                 {
-                    "file": "${packages}/ColoredComments/colored_comments.sublime-settings"
+                    "base_file": "${packages}/ColoredComments/colored_comments.sublime-settings",
+                    "default": "{\n\t$0\n}\n",
                 },
-                "caption": "Settings – Default"
-            },
-            {
-                "command": "open_file",
-                "args":
-                {
-                    "file": "${packages}/User/colored_comments.sublime-settings"
-                },
-                "caption": "Settings – User"
             }]
         }]
     }]
