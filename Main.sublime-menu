@@ -13,7 +13,7 @@
                 "command": "edit_settings",
                 "args":
                 {
-                    "base_file": "${packages}/ColoredComments/colored_comments.sublime-settings",
+                    "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
                     "default": "{\n\t$0\n}\n",
                 },
             }]
