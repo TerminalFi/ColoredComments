@@ -2,7 +2,8 @@ import sublime
 import sublime_plugin
 import re
 
-
+NAME = "Colored Comments"
+VERSION = "1.2.0"
 TAG_MAP = dict()
 
 

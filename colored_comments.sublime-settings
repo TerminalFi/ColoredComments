@@ -4,26 +4,30 @@
     {
         "Important":
         {
-            "identifier": "*",
-            "scope": "region.purplish",
+            "identifier": "!",
+            "scope": "region.redish",
+            "color": "#ff0000",
             "style": "underline"
         },
         "Deprecated":
         {
-            "identifier": "!",
-            "scope": "region.redish",
+            "identifier": "*",
+            "scope": "region.purplish",
+            "color": "#6600cc",
             "style": "underline"
         },
         "Question":
         {
             "identifier": "?",
             "scope": "region.cyanish",
+            "color": "#00ffff",
             "style": "underline"
         },
         "TODO":
         {
             "identifier": "TODO",
             "scope": "region.bluish",
+            "color": "#0066ff",
             "style": "underline"
         }
     }
