@@ -3,7 +3,7 @@ import sublime_plugin
 import re
 
 NAME = "Colored Comments"
-VERSION = "1.2.0"
+VERSION = "1.1.3"
 TAG_MAP = dict()
 
 
@@ -61,18 +61,18 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
                 decorations = TAG_MAP[value]
 
-                # * Default to outline
                 flags = sublime.DRAW_NO_FILL
-                style = decorations["style"].lower()
                 if "style" not in decorations.keys():
                     pass
-                elif style == "underline":
+                elif decorations["style"].lower() == "outline":
+                    flags = sublime.DRAW_NO_FILL
+                elif decorations["style"].lower() == "underline":
                     flags |= sublime.DRAW_SOLID_UNDERLINE
                     flags |= sublime.DRAW_NO_OUTLINE
-                elif style == "stippled_underline":
+                elif decorations["style"].lower() == "stippled_underline":
                     flags |= sublime.DRAW_STIPPLED_UNDERLINE
                     flags |= sublime.DRAW_NO_OUTLINE
-                elif style == "squiggly_underline":
+                elif decorations["style"].lower() == "squiggly_underline":
                     flags |= sublime.DRAW_SQUIGGLY_UNDERLINE
                     flags |= sublime.DRAW_NO_OUTLINE
 
