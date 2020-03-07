@@ -1,6 +1,5 @@
 import sublime
 import sublime_plugin
-
 from .color_manager import ColorManager
 import re
 
