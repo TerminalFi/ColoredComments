@@ -1,6 +1,6 @@
 [
 {
-    "caption": "ColoredComments: Generate/Regenerate Color Theme File",
+    "caption": "Colored Comments: Generate/Regenerate Color Theme File",
     "command": "colored_comments_theme_generator"
 },
 {
@@ -8,7 +8,7 @@
     "command": "edit_settings",
     "args":
     {
-        "base_file": "${packages}/ColoredComments/colored_comments.sublime-settings",
+        "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
         "default": "{\n\t$0\n}\n",
     }
 }]
