@@ -2,20 +2,6 @@
 The ColoredComments plugin was designed to help create more readible comments throughout your code. It was heavily inspired by [Better Comments by aaron-bond
 ](https://github.com/aaron-bond/better-comments)
 
-## Coming Soon
-Currently working on supporting true color customization. No longer will it be restricted to already created scopes/colors. In 2.0.0 expect to see settings similar to the following.
-
-```json
-{
-    "HELP":
-    {
-        "identifier": "HELP",
-        "background": "#000",
-        "foreground": "#00ff66"
-        "style": "stippled_underline"
-    }
-}
-```
 
 ## Global Settings
 The following are global settings for ColoredComments
@@ -35,33 +21,48 @@ The following are global settings for ColoredComments
 ## New Highlights
 Add new tags easily with the following format. Keep in mind the following:
 - **Identifiers**: Are not _regex_, they are plaintext and get inserted into a regex for faster matching
-- **Scope**: Are built in colors from your current theme. Changing _Text_ color is current not supported
-- **Style**: Style is in reference to how the Comments are displayed. Supported values for style are as follows: "_outline_" (Default if blank), "_underline_", "_stippled_underline_", "_squiggly_underline_"
+- **Scope**: Are built in colors from your current theme. **_Scope takes precendence over Color_**
+- **underline**: Sublime API setting for region draws
+- **stippled_underline**: Sublime API setting for region draws
+- **squiggly_underline**: Sublime API setting for region draws
+- **outline**: Sublime API setting for region draws
+- **color**: Custom text colors
+    - **name**: This is used when generating the scope for the color scheme
+    - **foreground**: This is the **_text_** color
+    - **background**: This is the background of the region, generally you'll want this to be your themes _background_ color slightly changed
+    _background_ if your themes background is `"rgba(1, 22, 38, 0.0)" this should be set like `"rgba(1, 22, 38, 0.1)"` for best results
 
-### Scope Color Examples
+
+### Scope Examples
 Taken from [Sublime MiniHTML Reference](https://www.sublimetext.com/docs/3/minihtml.html#predefined_variables)
-- background
-- foreground
-- accent
-- redish
-- orangish
-- yellowish
-- greenish
-- cyanish
-- bluish
-- purplish
-- pinkish
+- region.background
+- region.foreground
+- region.accent
+- region.redish
+- region.orangish
+- region.yellowish
+- region.greenish
+- region.cyanish
+- region.bluish
+- region.purplish
+- region.pinkish
 
 ### Example Tag
 ```json
-{
-    "HELP":
-    {
-        "identifier": "HELP",
-        "scope": "region.bluish",
-        "style": "stippled_underline"
-    }
-}
+"Important":
+        {
+            "identifier": "!",
+            "underline": false,
+            "stippled_underline": false,
+            "squiggly_underline": false,
+            "outline": false,
+            "color":
+            {
+                "name": "important",
+                "foreground": "#cc0000",
+                "background": "rgba(1, 22, 38, 0.1)"
+            },
+        }
 ```
 
 ## Contributors
