@@ -1,34 +1,51 @@
 {
+    "prompt_new_color_scheme": false,
     "continued_matching": true,
     "tags":
     {
         "Important":
         {
             "identifier": "!",
-            "scope": "region.redish",
-            "color": "#ff0000",
-            "style": "underline"
+            "underline": false,
+            "stippled_underline": false,
+            "squiggly_underline": false,
+            "outline": false,
+            "color":
+            {
+                "name": "important",
+                "foreground": "#cc0000",
+                "background": "rgba(1, 22, 38, 0.1)"
+            },
         },
         "Deprecated":
         {
             "identifier": "*",
-            "scope": "region.purplish",
-            "color": "#6600cc",
-            "style": "underline"
+            "color":
+            {
+                "name": "deprecated",
+                "foreground": "#9933ff",
+                "background": "rgba(1, 22, 38, 0.1)"
+            },
         },
         "Question":
         {
             "identifier": "?",
-            "scope": "region.cyanish",
-            "color": "#00ffff",
-            "style": "underline"
+            "color":
+            {
+                "name": "question",
+                "foreground": "#0099ff",
+                "background": "rgba(1, 22, 38, 0.1)"
+            },
         },
         "TODO":
         {
             "identifier": "TODO",
-            "scope": "region.bluish",
-            "color": "#0066ff",
-            "style": "underline"
+            "color":
+            {
+                "name": "todo",
+                "foreground": "#ff9900",
+                "background": "rgba(1, 22, 38, 0.1)"
+            },
         }
     }
 }
