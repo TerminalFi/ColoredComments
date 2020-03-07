@@ -1,7 +1,9 @@
-# ColoredComments
-The ColoredComments plugin was designed to help create more readible comments throughout your code. It was heavily inspired by [Better Comments by aaron-bond
+# Colored Comments
+The Colored Comments plugin was designed to help create more readible comments throughout your code. It was heavily inspired by [Better Comments by aaron-bond
 ](https://github.com/aaron-bond/better-comments)
 
+# NOTICE !!
+If using the new verison run Generate/Regenerate Color Scheme
 
 ## Global Settings
 The following are global settings for ColoredComments
