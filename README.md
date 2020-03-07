@@ -15,6 +15,11 @@ The following are global settings for ColoredComments
 # - and again, continued highlighting
 ```
 
+### Version 2+
+<img width="461" alt="2020-03-06_21-11-38" src="https://user-images.githubusercontent.com/32599364/76134801-30df8980-5fef-11ea-92b2-ae7155af956b.png">
+
+
+### Version > 2
 <img width="518" alt="2020-02-21_08-52-51" src="https://user-images.githubusercontent.com/32599364/75039960-c4f61080-5487-11ea-9a43-f9ea7a53842e.png">
 
 
