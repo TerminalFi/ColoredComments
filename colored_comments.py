@@ -1,8 +1,11 @@
 import sublime
 import sublime_plugin
+from .color_manager import ColorManager
 import re
 
-
+NAME = "Colored Comments"
+VERSION = "2.0.0"
+SETTINGS = dict()
 TAG_MAP = dict()
 
 
@@ -16,14 +19,22 @@ class ColorCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
+        if self.view.match_selector(0, "text.plain"):
+            return
+        global TAG_MAP, SETTINGS
         get_settings()
         regions = self.view.find_by_selector("comment - punctuation.definition.comment")
+
+        if SETTINGS.get("prompt_new_color_scheme", False):
+            color_scheme_manager = ColorManager(
+                "User/ColoredComments", TAG_MAP, SETTINGS, False
+            )
+            color_scheme_manager.create_user_custom_theme()
         self.ApplyDecorations(generate_identifier_expression(), regions)
-        return
 
     def ApplyDecorations(self, delimiter, regions):
-        global TAG_MAP
-        to_decorate = {"BAD_ENTRY_COLORED_COMMENTS": []}
+        global TAG_MAP, SETTINGS
+        to_decorate = dict()
         identifier_regex = re.compile(delimiter)
 
         for tag in TAG_MAP:
@@ -39,7 +50,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                         continue
 
                     if (
-                        get_settings().get("continued_matching")
+                        SETTINGS.get("continued_matching")
                         and previous_match != ""
                         and reg_text[0] == "-"
                     ):
@@ -60,24 +71,50 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
                 decorations = TAG_MAP[value]
 
-                # * Default to outline
-                flags = sublime.DRAW_NO_FILL
-                style = decorations["style"].lower()
-                if "style" not in decorations.keys():
-                    pass
-                elif style == "underline":
+                flags = sublime.PERSISTENT
+                if "outline" in decorations.keys() and decorations["outline"] is True:
+                    flags |= sublime.DRAW_NO_FILL
+
+                if (
+                    "underline" in decorations.keys()
+                    and decorations["underline"] is True
+                ):
                     flags |= sublime.DRAW_SOLID_UNDERLINE
-                    flags |= sublime.DRAW_NO_OUTLINE
-                elif style == "stippled_underline":
+
+                if (
+                    "stippled_underline" in decorations.keys()
+                    and decorations["stippled_underline"] is True
+                ):
                     flags |= sublime.DRAW_STIPPLED_UNDERLINE
-                    flags |= sublime.DRAW_NO_OUTLINE
-                elif style == "squiggly_underline":
+
+                if (
+                    "squiggly_underline" in decorations.keys()
+                    and decorations["squiggly_underline"] is True
+                ):
                     flags |= sublime.DRAW_SQUIGGLY_UNDERLINE
-                    flags |= sublime.DRAW_NO_OUTLINE
+
+                scope_to_use = ""
+                if "scope" in decorations.keys():
+                    scope_to_use = decorations["scope"]
+                else:
+                    scope_to_use = (
+                        "colored.comments.color."
+                        + decorations["color"]["name"].replace(" ", ".").lower()
+                    )
 
                 self.view.add_regions(
-                    value, to_decorate[value], decorations["scope"], "dot", flags
+                    value, to_decorate[value], scope_to_use, "dot", flags
                 )
+
+
+class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global TAG_MAP, SETTINGS
+        get_settings()
+        color_scheme_manager = ColorManager(
+            "User/ColoredComments", TAG_MAP, SETTINGS, True
+        )
+        color_scheme_manager.create_user_custom_theme()
 
 
 def escape_regex(pattern):
@@ -100,7 +137,6 @@ def generate_identifier_expression():
 
 
 def get_settings():
-    global TAG_MAP
-    setting = sublime.load_settings("colored_comments.sublime-settings")
-    TAG_MAP = setting.get("tags", [])
-    return setting
+    global TAG_MAP, SETTINGS
+    SETTINGS = sublime.load_settings("colored_comments.sublime-settings")
+    TAG_MAP = SETTINGS.get("tags", [])
