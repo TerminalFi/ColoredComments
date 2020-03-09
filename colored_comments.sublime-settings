@@ -13,7 +13,7 @@
             {
                 "name": "important",
                 "foreground": "#cc0000",
-                "background": "var(--background)"
+                "background": "rgba(1,22,38, 0.1)"
             },
         },
         "Deprecated":
@@ -23,7 +23,7 @@
             {
                 "name": "deprecated",
                 "foreground": "#9933ff",
-                "background": "var(--background)"
+                "background": "rgba(1,22,38, 0.1)"
             },
         },
         "Question":
@@ -33,7 +33,7 @@
             {
                 "name": "question",
                 "foreground": "#0099ff",
-                "background": "var(--background)"
+                "background": "rgba(1,22,38, 0.1)"
             },
         },
         "TODO":
@@ -43,7 +43,7 @@
             {
                 "name": "todo",
                 "foreground": "#ff9900",
-                "background": "var(--background)"
+                "background": "rgba(1,22,38, 0.1)"
             },
         }
     }

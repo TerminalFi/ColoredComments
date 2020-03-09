@@ -4,7 +4,7 @@ from .color_manager import ColorManager
 import re
 
 NAME = "Colored Comments"
-VERSION = "2.0.0"
+VERSION = "2.0.3"
 SETTINGS = dict()
 TAG_MAP = dict()
 
@@ -108,6 +108,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         global TAG_MAP, SETTINGS
+        get_settings()
         color_scheme_manager = ColorManager(
             "User/Colored Comments", TAG_MAP, SETTINGS, True
         )
@@ -117,6 +118,7 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         global SETTINGS
+        get_settings()
         preferences = sublime.load_settings("Preferences.sublime-settings")
         preferences.set("color_scheme", SETTINGS.get("old_color_scheme", ""))
         sublime.save_settings("Preferences.sublime-settings")

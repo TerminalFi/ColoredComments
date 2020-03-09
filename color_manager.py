@@ -45,8 +45,8 @@ class ColorManager:
                 entry["background"] = color_background
                 settings.append(entry)
 
-        color_scheme_plist["rules"] = settings
-        return updates_made, color_scheme_plist
+        color_scheme_json["rules"] = settings
+        return updates_made, color_scheme_json
 
     def _create_custom_color_scheme_directory(self):
         package_path = sublime.packages_path()
@@ -94,6 +94,10 @@ class ColorManager:
         )
         if self.regenerate:
             print("[Colored Comments] Regenerating theme file")
+            try:
+                os.remove(new_cs_absolute)
+            except:
+                pass
             with open(new_cs_absolute, "w") as outfile:
                 json.dump(color_scheme, outfile, indent=4)
         elif updates_made or preferences_cs != new_cs:
