@@ -1,7 +1,9 @@
-# ColoredComments
-The ColoredComments plugin was designed to help create more readible comments throughout your code. It was heavily inspired by [Better Comments by aaron-bond
+# Colored Comments
+The Colored Comments plugin was designed to help create more readible comments throughout your code. It was heavily inspired by [Better Comments by aaron-bond
 ](https://github.com/aaron-bond/better-comments)
 
+# NOTICE !!
+If using the new verison run Generate/Regenerate Color Scheme
 
 ## Global Settings
 The following are global settings for ColoredComments
@@ -35,7 +37,7 @@ Add new tags easily with the following format. Keep in mind the following:
     - **name**: This is used when generating the scope for the color scheme
     - **foreground**: This is the **_text_** color
     - **background**: This is the background of the region, generally you'll want this to be your themes _background_ color slightly changed
-    _background_ if your themes background is `"rgba(1, 22, 38, 0.0)" this should be set like `"rgba(1, 22, 38, 0.1)"` for best results
+    _background_ if your themes background is `"rgba(1, 22, 38, 0.0)"` this should be set like `"rgba(1, 22, 38, 0.1)"` for best results
 
 
 ### Scope Examples
