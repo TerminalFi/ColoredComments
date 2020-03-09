@@ -1,10 +1,14 @@
 [
 {
-    "caption": "Colored Comments: Generate/Regenerate Color Theme File",
+    "caption": "Colored Comments: Generate/Regenerate Color Scheme File",
     "command": "colored_comments_theme_generator"
 },
 {
-    "caption": "ColoredComments: Edit Settings",
+    "caption": "Colored Comments: Revert to Original Color Scheme File",
+    "command": "colored_comments_theme_revert"
+},
+{
+    "caption": "Colored Comments: Edit Settings",
     "command": "edit_settings",
     "args":
     {

@@ -1,5 +1,4 @@
 {
-    "prompt_new_color_scheme": false,
     "continued_matching": true,
     "tags":
     {
@@ -14,7 +13,7 @@
             {
                 "name": "important",
                 "foreground": "#cc0000",
-                "background": "rgba(1, 22, 38, 0.1)"
+                "background": "var(--background)"
             },
         },
         "Deprecated":
@@ -24,7 +23,7 @@
             {
                 "name": "deprecated",
                 "foreground": "#9933ff",
-                "background": "rgba(1, 22, 38, 0.1)"
+                "background": "var(--background)"
             },
         },
         "Question":
@@ -34,7 +33,7 @@
             {
                 "name": "question",
                 "foreground": "#0099ff",
-                "background": "rgba(1, 22, 38, 0.1)"
+                "background": "var(--background)"
             },
         },
         "TODO":
@@ -44,7 +43,7 @@
             {
                 "name": "todo",
                 "foreground": "#ff9900",
-                "background": "rgba(1, 22, 38, 0.1)"
+                "background": "var(--background)"
             },
         }
     }

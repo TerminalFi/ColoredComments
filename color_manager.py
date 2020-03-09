@@ -1,8 +1,6 @@
 import sublime
 
-import re
 import os
-
 import json
 
 VERSION = int(sublime.version())
@@ -10,9 +8,6 @@ VERSION = int(sublime.version())
 
 class ColorManager:
     update_preferences = True
-    color_regex = re.compile(
-        r"(#([\da-f]{3}){1,2}|(rgb|hsl)a\((\d{1,3}%?,\s?){3}(1|0?\.\d+)\)|(rgb|hsl)\(\d{1,3}%?(,\s?\d{1,3}%?){2}\))$"
-    )
 
     def __init__(self, new_color_scheme_path, tags, settings, regenerate):
         self.new_color_scheme_path = new_color_scheme_path
@@ -20,8 +15,8 @@ class ColorManager:
         self.settings = settings
         self.regenerate = regenerate
 
-    def _add_colors_to_scheme(self, color_scheme_plist):
-        settings = color_scheme_plist["rules"]
+    def _add_colors_to_scheme(self, color_scheme_json):
+        settings = color_scheme_json["rules"]
         scope_exist = False
         updates_made = False
 
@@ -34,28 +29,10 @@ class ColorManager:
             color_background = _get_color_background(curr_tag)
             color_foreground = _get_color_foreground(curr_tag)
 
-            if bool(ColorManager.color_regex.search(color_foreground)) is False:
-                print(
-                    "[Colored Comments]: Invalid color specified - " + color_foreground
-                )
-                print(
-                    "Colors should use a Sublime support format (Hex, RGB, RGBA, HSL, HSLA)"
-                )
-                color_foreground = "rgb(229, 0, 0)"
-
-            if bool(ColorManager.color_regex.search(color_background)) is False:
-                print(
-                    "[Colored Comments]: Invalid color specified - " + color_background
-                )
-                print(
-                    "Colors should use a Sublime support format (Hex, RGB, RGBA, HSL, HSLA)"
-                )
-                color_background = "rgba(255, 255, 255, 0.1)"
-
             scope = "colored.comments.color." + color_name.replace(" ", ".").lower()
 
             for setting in settings:
-                if "scope" in setting and setting["scope"] == scope and self.regenerate is False:
+                if "scope" in setting and setting["scope"] == scope:
                     scope_exist = True
                     break
 
@@ -85,10 +62,16 @@ class ColorManager:
 
         preferences = sublime.load_settings("Preferences.sublime-settings")
         preferences_cs = preferences.get("color_scheme")
+        if self.regenerate:
+            if self.settings.get("old_color_scheme", "") != "":
+                preferences_cs = self.settings.get("old_color_scheme", "")
+
+        self.settings.set("old_color_scheme", preferences_cs)
+        sublime.save_settings("colored_comments.sublime-settings")
         cs_base = os.path.basename(preferences_cs)
 
-        if cs_base[0:15] != "ColoredComments":
-            new_cs_base = "ColoredComments-" + cs_base
+        if cs_base[0:16] != "Colored Comments":
+            new_cs_base = "Colored Comments-" + cs_base
         else:
             new_cs_base = cs_base
 
@@ -124,22 +107,17 @@ class ColorManager:
                     + "your color scheme to '"
                     + new_cs
                     + "'? "
-                    + "This is "
-                    + "where the custom colors "
-                    + "are being saved. By "
-                    + "clicking cancel you will "
-                    + "not be reminded again in "
-                    + "this session. "
                     + "To permanently disable "
                     + "this prompt, set "
                     + "'prompt_new_color_scheme' "
-                    + "to false in the settings"
+                    + "to false in the Colored Comments settings"
                 )
 
                 if okay:
                     preferences.set("color_scheme", new_cs)
                     sublime.save_settings("Preferences.sublime-settings")
-                    os.sleep(5)
+                    self.settings.set("prompt_new_color_scheme", False)
+                    sublime.save_settings("colored_comments.sublime-settings")
                 else:
                     ColorManager.update_preferences = False
 
