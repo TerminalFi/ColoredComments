@@ -5,7 +5,7 @@ import sys
 import json
 from . import plistlib
 
-VERSION = int(sublime.version())
+SUBLIME_SETTINGS = "Preferences.sublime-settings"
 
 
 class ColorManager:
@@ -33,8 +33,8 @@ class ColorManager:
             color_background = _get_color_background(curr_tag)
             color_foreground = _get_color_foreground(curr_tag)
 
-            scope = "colored.comments.color."
-            scope = scope + color_name.replace(" ", ".").lower()
+            scope_name = "colored.comments.color."
+            scope = scope_name + color_name.replace(" ", ".").lower()
 
             for setting in settings:
                 if "scope" in setting and setting["scope"] == scope:
@@ -74,15 +74,15 @@ class ColorManager:
         if len(self.tags) == 0:
             return
 
-        preferences = sublime.load_settings("Preferences.sublime-settings")
-        preferences_cs = preferences.get("color_scheme")
+        sublime_preferences = sublime.load_settings(SUBLIME_SETTINGS)
+        sublime_cs = sublime_preferences.get("color_scheme")
         if self.regenerate:
             if self.settings.get("old_color_scheme", "") != "":
-                preferences_cs = self.settings.get("old_color_scheme", "")
+                sublime_cs = self.settings.get("old_color_scheme", "")
 
-        self.settings.set("old_color_scheme", preferences_cs)
+        self.settings.set("old_color_scheme", sublime_cs)
         sublime.save_settings("colored_comments.sublime-settings")
-        cs_base = os.path.basename(preferences_cs)
+        cs_base = os.path.basename(sublime_cs)
 
         if cs_base[0:16] != "Colored Comments":
             new_cs_base = "Colored Comments-" + cs_base
@@ -93,29 +93,8 @@ class ColorManager:
 
         new_cs_absolute = os.path.join(custom_color_base, new_cs_base)
         new_cs = "Packages/" + self.new_color_scheme_path + "/" + new_cs_base
-        scheme_content = b""
-        try:
-            scheme_content = sublime.load_binary_resource(preferences_cs)
-        except:
-            sublime.error_message(
-                "An error occured while reading color "
-                + "scheme file. Please check the console "
-                "for details."
-            )
-            raise
-        updates_made = color_scheme = is_json = ""
-        if preferences_cs.endswith(".sublime-color-scheme"):
-            is_json = True
-            updates_made, color_scheme = self._add_colors_to_scheme(
-                json.loads(scheme_content.decode("utf-8")), is_json
-            )
-        elif preferences_cs.endswith(".tmTheme"):
-            is_json = False
-            updates_made, color_scheme = self._add_colors_to_scheme(
-                plistlib.loads(bytes(scheme_content)), is_json
-            )
-        else:
-            sys.exit(1)
+
+        updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
 
         if self.regenerate:
             print("[Colored Comments] Regenerating theme file")
@@ -130,7 +109,7 @@ class ColorManager:
                 with open(new_cs_absolute, "wb") as outfile:
                     outfile.write(plistlib.dumps(color_scheme))
 
-        elif updates_made or preferences_cs != new_cs:
+        elif updates_made or sublime_cs != new_cs:
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
                     json.dump(color_scheme, outfile, indent=4)
@@ -138,7 +117,7 @@ class ColorManager:
                 with open(new_cs_absolute, "wb") as outfile:
                     outfile.write(plistlib.dumps(color_scheme))
 
-        if preferences_cs != new_cs:
+        if sublime_cs != new_cs:
             if ColorManager.update_preferences:
                 okay = sublime.ok_cancel_dialog(
                     "Would you like to change "
@@ -152,12 +131,48 @@ class ColorManager:
                 )
 
                 if okay:
-                    preferences.set("color_scheme", new_cs)
+                    sublime_preferences.set("color_scheme", new_cs)
                     sublime.save_settings("Preferences.sublime-settings")
                     self.settings.set("prompt_new_color_scheme", False)
                     sublime.save_settings("colored_comments.sublime-settings")
                 else:
                     ColorManager.update_preferences = False
+
+    def load_color_scheme(self, scheme):
+        scheme_content = b""
+        is_json = False
+        try:
+            sublime_default_cs = [
+                "Mariana.sublime-color-scheme",
+                "Celeste.sublime-color-scheme",
+                "Monokai.sublime-color-scheme",
+                "Breakers.sublime-color-schem",
+                "Sixteen.sublime-color-scheme",
+            ]
+            if scheme in sublime_default_cs:
+                scheme = "Packages/Color Scheme - Default/" + scheme
+            scheme_content = sublime.load_binary_resource(scheme)
+        except:
+            sublime.error_message(
+                "An error occured while reading color "
+                + "scheme file. Please check the console "
+                "for details."
+            )
+            raise
+        updates_made = color_scheme = ""
+        if scheme.endswith(".sublime-color-scheme"):
+            is_json = True
+            updates_made, color_scheme = self._add_colors_to_scheme(
+                sublime.decode_value(scheme_content.decode("utf-8")), is_json
+            )
+        elif scheme.endswith(".tmTheme"):
+            is_json = False
+            updates_made, color_scheme = self._add_colors_to_scheme(
+                plistlib.loads(bytes(scheme_content)), is_json
+            )
+        else:
+            sys.exit(1)
+        return updates_made, color_scheme, is_json
 
 
 def _get_color_name(tags):

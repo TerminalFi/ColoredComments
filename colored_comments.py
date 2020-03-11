@@ -8,8 +8,10 @@ NAME = "Colored Comments"
 VERSION = "2.0.4"
 SETTINGS = dict()
 TAG_MAP = dict()
+TAG_REGEX = ""
 
 
+# ? Is there a better was to implement this
 class ColorCommentsEventListener(sublime_plugin.EventListener):
     def on_load(self, view):
         view.run_command("colored_comments")
@@ -22,7 +24,9 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         if self.view.match_selector(0, "text.plain"):
             return
-        global TAG_MAP, SETTINGS
+        global TAG_MAP, SETTINGS, TAG_REGEX
+        get_settings()
+
         comment_selector = "comment - punctuation.definition.comment"
         regions = self.view.find_by_selector(comment_selector)
 
@@ -31,9 +35,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 "User/Colored Comments", TAG_MAP, SETTINGS, False
             )
             color_scheme_manager.create_user_custom_theme()
-        self.ApplyDecorations(
-            generate_identifier_expression(TAG_MAP), regions, TAG_MAP, SETTINGS
-        )
+        self.ApplyDecorations(TAG_REGEX, regions, TAG_MAP, SETTINGS)
 
     def ApplyDecorations(self, delimiter, regions, tags, settings):
         to_decorate = dict()
@@ -70,26 +72,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     continue
 
                 sel_tag = tags[value]
-
-                flags = sublime.PERSISTENT
-                if "outline" in sel_tag.keys() and sel_tag["outline"] is True:
-                    flags |= sublime.DRAW_NO_FILL
-
-                if "underline" in sel_tag.keys() and sel_tag["underline"] is True:
-                    flags |= sublime.DRAW_SOLID_UNDERLINE
-
-                if (
-                    "stippled_underline" in sel_tag.keys()
-                    and sel_tag["stippled_underline"] is True
-                ):
-                    flags |= sublime.DRAW_STIPPLED_UNDERLINE
-
-                if (
-                    "squiggly_underline" in sel_tag.keys()
-                    and sel_tag["squiggly_underline"] is True
-                ):
-                    flags |= sublime.DRAW_SQUIGGLY_UNDERLINE
-
+                flags = self.get_tag_flags(sel_tag)
                 scope_to_use = ""
                 if "scope" in sel_tag.keys():
                     scope_to_use = sel_tag["scope"]
@@ -100,8 +83,21 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     )
 
                 self.view.add_regions(
-                    value, to_decorate[value], scope_to_use, "dot", flags
+                    value, to_decorate[value], scope_to_use, "", flags
                 )
+
+    def get_tag_flags(self, tag):
+        options = {
+            "outline": sublime.DRAW_NO_FILL,
+            "underline": sublime.DRAW_SOLID_UNDERLINE,
+            "stippled_underline": sublime.DRAW_STIPPLED_UNDERLINE,
+            "squiggly_underline": sublime.DRAW_SQUIGGLY_UNDERLINE,
+        }
+        flags = sublime.PERSISTENT
+        for key, value in options.items():
+            if key in tag.keys() and tag[key] is True:
+                flags |= value
+        return flags
 
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
@@ -154,3 +150,16 @@ def get_settings():
 
 def plugin_loaded():
     get_settings()
+    global TAG_MAP
+    generate_identifier_expression(TAG_MAP)
+
+
+def plugin_unloaded():
+    preferences = sublime.load_settings("Preferences.sublime-settings")
+    cc_preferences = sublime.load_settings("colored_comments.sublime-settings")
+    old_color_scheme = cc_preferences.get("old_color_scheme", "")
+    if old_color_scheme != "":
+        preferences.set("color_scheme", old_color_scheme)
+    else:
+        preferences.erase("color_scheme")
+    sublime.save_settings("Preferences.sublime-settings")
