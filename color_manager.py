@@ -1,7 +1,9 @@
 import sublime
 
 import os
+import sys
 import json
+from . import plistlib
 
 VERSION = int(sublime.version())
 
@@ -15,8 +17,10 @@ class ColorManager:
         self.settings = settings
         self.regenerate = regenerate
 
-    def _add_colors_to_scheme(self, color_scheme_json):
-        settings = color_scheme_json["rules"]
+    def _add_colors_to_scheme(self, color_scheme_json, is_json):
+        settings = (
+            color_scheme_json["rules"] if is_json else color_scheme_json["settings"]
+        )
         scope_exist = False
         updates_made = False
 
@@ -29,7 +33,8 @@ class ColorManager:
             color_background = _get_color_background(curr_tag)
             color_foreground = _get_color_foreground(curr_tag)
 
-            scope = "colored.comments.color." + color_name.replace(" ", ".").lower()
+            scope = "colored.comments.color."
+            scope = scope + color_name.replace(" ", ".").lower()
 
             for setting in settings:
                 if "scope" in setting and setting["scope"] == scope:
@@ -41,11 +46,20 @@ class ColorManager:
                 entry = {}
                 entry["name"] = "[Colored Comments] " + color_name.title()
                 entry["scope"] = scope
-                entry["foreground"] = color_foreground
-                entry["background"] = color_background
-                settings.append(entry)
+                if is_json:
+                    entry["foreground"] = color_foreground
+                    entry["background"] = color_background
+                else:
+                    entry["settings"] = dict()
+                    entry["settings"]["foreground"] = color_foreground
+                    entry["settings"]["background"] = color_background
 
-        color_scheme_json["rules"] = settings
+                settings.append(entry)
+        if is_json:
+            color_scheme_json["rules"] = settings
+        else:
+            color_scheme_json["settings"] = settings
+
         return updates_made, color_scheme_json
 
     def _create_custom_color_scheme_directory(self):
@@ -89,20 +103,40 @@ class ColorManager:
                 "for details."
             )
             raise
-        updates_made, color_scheme = self._add_colors_to_scheme(
-            json.loads(scheme_content.decode("utf-8"))
-        )
+        updates_made = color_scheme = is_json = ""
+        if preferences_cs.endswith(".sublime-color-scheme"):
+            is_json = True
+            updates_made, color_scheme = self._add_colors_to_scheme(
+                json.loads(scheme_content.decode("utf-8")), is_json
+            )
+        elif preferences_cs.endswith(".tmTheme"):
+            is_json = False
+            updates_made, color_scheme = self._add_colors_to_scheme(
+                plistlib.loads(bytes(scheme_content)), is_json
+            )
+        else:
+            sys.exit(1)
+
         if self.regenerate:
             print("[Colored Comments] Regenerating theme file")
             try:
                 os.remove(new_cs_absolute)
             except:
                 pass
-            with open(new_cs_absolute, "w") as outfile:
-                json.dump(color_scheme, outfile, indent=4)
+            if is_json:
+                with open(new_cs_absolute, "w") as outfile:
+                    json.dump(color_scheme, outfile, indent=4)
+            else:
+                with open(new_cs_absolute, "wb") as outfile:
+                    outfile.write(plistlib.dumps(color_scheme))
+
         elif updates_made or preferences_cs != new_cs:
-            with open(new_cs_absolute, "w") as outfile:
-                json.dump(color_scheme, outfile, indent=4)
+            if is_json:
+                with open(new_cs_absolute, "w") as outfile:
+                    json.dump(color_scheme, outfile, indent=4)
+            else:
+                with open(new_cs_absolute, "wb") as outfile:
+                    outfile.write(plistlib.dumps(color_scheme))
 
         if preferences_cs != new_cs:
             if ColorManager.update_preferences:
