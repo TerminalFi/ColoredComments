@@ -132,13 +132,16 @@ def escape_regex(pattern):
     return pattern
 
 
-def generate_identifier_expression(tags):
-    identifiers = collections.deque([])
-    for tag in tags:
-        identifiers.append(escape_regex(tags[tag]["identifier"]))
+def generate_identifier_expression(tag):
+    identifiers = dict()
+    identifiers.append(
+        tag["identifier"]
+        if tag.get("is_regex", False)
+        else escape_regex(tag["identifier"])
+    )
 
     identifier_regex = "(?b)^("
-    identifier_regex += "|".join(identifiers)
+    identifier_regex += identifiers
     identifier_regex += ")[ \t]+(?:.*)"
     return regex.compile(identifier_regex)
 
