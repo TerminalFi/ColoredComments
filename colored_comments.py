@@ -5,7 +5,7 @@ import regex
 import collections
 
 NAME = "Colored Comments"
-VERSION = "2.0.3"
+VERSION = "2.0.4"
 SETTINGS = dict()
 TAG_MAP = dict()
 
