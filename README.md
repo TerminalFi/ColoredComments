@@ -27,7 +27,10 @@ The following are global settings for ColoredComments
 
 ## New Highlights
 Add new tags easily with the following format. Keep in mind the following:
-- **Identifiers**: Are not _regex_, they are plaintext and get inserted into a regex for faster matching
+- **identifiers**: These can be _plaintext_ or _regex_ patterns. If they are _regex_ be sure to set the _is_regex_ property to `true`
+- **is_regex**: Set this to `true` if your identifier is a _regex_
+- **priority**: This setting is critical if you want to prioritize tag settings. **Default**: 2147483647
+This should be used if there are multiple tags that could match on the same thing. An example of this would be `"identifier": "*"` and `"identifier": "[\\*]?[ ]?@param"` could both match on `* @param` because one is less precise. To avoid these conflicts you can give the `[\\*]?[ ]?@param` a higher priority such as `"-1"`, Negative values get higher priorty than positive values. If two or more tags get the same priority, they are treated as first come first serve type of matching.
 - **Scope**: Are built in colors from your current theme. **_Scope takes precendence over Color_**
 - **underline**: Sublime API setting for region draws
 - **stippled_underline**: Sublime API setting for region draws
