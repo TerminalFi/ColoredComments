@@ -100,7 +100,7 @@ class ColorManager:
             print("[Colored Comments] Regenerating theme file")
             try:
                 os.remove(new_cs_absolute)
-            except:
+            except OSError:
                 pass
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
@@ -152,12 +152,13 @@ class ColorManager:
             if scheme in sublime_default_cs:
                 scheme = "Packages/Color Scheme - Default/" + scheme
             scheme_content = sublime.load_binary_resource(scheme)
-        except:
+        except Exception as e:
             sublime.error_message(
                 "An error occured while reading color "
                 + "scheme file. Please check the console "
                 "for details."
             )
+            print("[Colored Comments] " + e)
             raise
         updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):

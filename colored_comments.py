@@ -2,16 +2,15 @@ import sublime
 import sublime_plugin
 from .color_manager import ColorManager
 import regex
-import collections
+from collections import OrderedDict
 
 NAME = "Colored Comments"
-VERSION = "2.0.4"
+VERSION = "2.1.0"
 SETTINGS = dict()
 TAG_MAP = dict()
-TAG_REGEX = ""
+TAG_REGEX = OrderedDict()
 
 
-# ? Is there a better was to implement this
 class ColorCommentsEventListener(sublime_plugin.EventListener):
     def on_load(self, view):
         view.run_command("colored_comments")
@@ -47,30 +46,24 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         for region in regions:
             for reg in self.view.split_by_newlines(region):
                 reg_text = self.view.substr(reg).strip()
-                matches = delimiter.search(reg_text)
-                if not matches:
-                    if len(reg_text) != 0:
-                        if (
-                            settings.get("continued_matching")
-                            and previous_match != ""
-                            and reg_text[0] == "-"
-                        ):
-                            to_decorate[previous_match] += [reg]
-                        else:
-                            previous_match = ""
-                    continue
-
-                for tag in tags:
-                    identifier = tags[tag]["identifier"]
-                    if identifier != matches.group(1):
+                for tag_identifier in delimiter:
+                    matches = delimiter[tag_identifier].search(reg_text)
+                    if not matches:
+                        if len(reg_text) != 0:
+                            if (
+                                settings.get("continued_matching")
+                                and previous_match != ""
+                                and reg_text[0] == "-"
+                            ):
+                                to_decorate[previous_match] += [reg]
+                            else:
+                                previous_match = ""
                         continue
-                    previous_match = tag
-                    to_decorate[tag] += [reg]
+                    previous_match = tag_identifier
+                    to_decorate[tag_identifier] += [reg]
+                    break
 
             for value in to_decorate:
-                if value not in tags.keys():
-                    continue
-
                 sel_tag = tags[value]
                 flags = self.get_tag_flags(sel_tag)
                 scope_to_use = ""
@@ -102,8 +95,9 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global TAG_MAP, SETTINGS
+        global TAG_MAP, SETTINGS, TAG_REGEX
         get_settings()
+        TAG_REGEX = generate_identifier_expression(TAG_MAP)
         color_scheme_manager = ColorManager(
             "User/Colored Comments", TAG_MAP, SETTINGS, True
         )
@@ -128,18 +122,35 @@ def escape_regex(pattern):
     return pattern
 
 
-def generate_identifier_expression(tag):
-    identifiers = dict()
-    identifiers.append(
-        tag["identifier"]
-        if tag.get("is_regex", False)
-        else escape_regex(tag["identifier"])
-    )
+def generate_identifier_expression(tags):
+    unordered_tags = dict()
+    ordered_tags = OrderedDict()
+    identifiers = OrderedDict()
+    for key, value in tags.items():
+        priority = 2147483647
+        if value.get("priority", False):
+            priority = value.get("priority")
+            try:
+                priority = int(priority)
+            except ValueError:
+                priority = 2147483647
+        if not unordered_tags.get(priority, False):
+            unordered_tags[priority] = list()
+        unordered_tags[priority] += [{"name": key, "settings": value}]
+    for key in sorted(unordered_tags):
+        ordered_tags[key] = unordered_tags[key]
 
-    identifier_regex = "(?b)^("
-    identifier_regex += identifiers
-    identifier_regex += ")[ \t]+(?:.*)"
-    return regex.compile(identifier_regex)
+    for key, value in ordered_tags.items():
+        for tag in value:
+            tag_identifier = "^("
+            tag_identifier += (
+                tag["settings"]["identifier"]
+                if tag["settings"].get("is_regex", False)
+                else escape_regex(tag["settings"]["identifier"])
+            )
+            tag_identifier += ")[ \t]+(?:.*)"
+            identifiers[tag["name"]] = regex.compile(tag_identifier)
+    return identifiers
 
 
 def get_settings():
@@ -150,8 +161,8 @@ def get_settings():
 
 def plugin_loaded():
     get_settings()
-    global TAG_MAP
-    generate_identifier_expression(TAG_MAP)
+    global TAG_MAP, TAG_REGEX
+    TAG_REGEX = generate_identifier_expression(TAG_MAP)
 
 
 def plugin_unloaded():
