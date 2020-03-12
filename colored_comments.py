@@ -3,6 +3,7 @@ import sublime_plugin
 from .color_manager import ColorManager
 import regex
 from collections import OrderedDict
+from os import path
 
 NAME = "Colored Comments"
 VERSION = "2.1.0"
@@ -109,7 +110,11 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
         global SETTINGS
         get_settings()
         preferences = sublime.load_settings("Preferences.sublime-settings")
-        preferences.set("color_scheme", SETTINGS.get("old_color_scheme", ""))
+        old_color_scheme = SETTINGS.get("old_color_scheme", "")
+        if old_color_scheme == "" or not path.exists(old_color_scheme):
+            preferences.erase("color_scheme")
+        else:
+            preferences.set("color_scheme", old_color_scheme)
         sublime.save_settings("Preferences.sublime-settings")
         SETTINGS.erase("old_color_scheme")
         sublime.save_settings("colored_comments.sublime-settings")

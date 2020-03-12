@@ -17,8 +17,8 @@ class ColorManager:
         self.settings = settings
         self.regenerate = regenerate
 
-    def _add_colors_to_schema(self, color_schema, is_json):
-        settings = color_schema["rules"] if is_json else color_schema["settings"]
+    def _add_colors_to_scheme(self, color_scheme, is_json):
+        settings = color_scheme["rules"] if is_json else color_scheme["settings"]
         scope_exist = False
         updates_made = False
 
@@ -54,11 +54,11 @@ class ColorManager:
 
                 settings.append(entry)
         if is_json:
-            color_schema["rules"] = settings
+            color_scheme["rules"] = settings
         else:
-            color_schema["settings"] = settings
+            color_scheme["settings"] = settings
 
-        return updates_made, color_schema
+        return updates_made, color_scheme
 
     def _create_custom_color_scheme_directory(self):
         package_path = sublime.packages_path()
@@ -92,7 +92,7 @@ class ColorManager:
         new_cs_absolute = os.path.join(custom_color_base, new_cs_base)
         new_cs = "Packages/" + self.new_color_scheme_path + "/" + new_cs_base
 
-        updates_made, color_scheme, is_json = self.load_color_schema(sublime_cs)
+        updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
 
         if self.regenerate:
             print("[Colored Comments] Regenerating theme file")
@@ -136,7 +136,7 @@ class ColorManager:
                 else:
                     ColorManager.update_preferences = False
 
-    def load_color_schema(self, scheme):
+    def load_color_scheme(self, scheme):
         scheme_content = b""
         is_json = False
         try:
@@ -161,12 +161,12 @@ class ColorManager:
         updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
-            updates_made, color_scheme = self._add_colors_to_schema(
+            updates_made, color_scheme = self._add_colors_to_scheme(
                 sublime.decode_value(scheme_content.decode("utf-8")), is_json
             )
         elif scheme.endswith(".tmTheme"):
             is_json = False
-            updates_made, color_scheme = self._add_colors_to_schema(
+            updates_made, color_scheme = self._add_colors_to_scheme(
                 plistlib.loads(bytes(scheme_content)), is_json
             )
         else:
