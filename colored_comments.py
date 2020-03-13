@@ -166,8 +166,9 @@ def generate_identifier_expression(tags):
                 priority = int(priority)
             except ValueError as ex:
                 LOG.debug(
-                    "[Colored Comments]: %s - %s"
-                    % (generate_identifier_expression.__name__, ex)
+                    "[Colored Comments]: %s - %s",
+                    generate_identifier_expression.__name__,
+                    ex,
                 )
                 priority = 2147483647
         if not unordered_tags.get(priority, False):
@@ -204,7 +205,7 @@ def _get_icon():
             sublime.load_binary_resource(icon)
         except OSError as ex:
             icon = ""
-            LOG.debug("[Colored Comments]: %s - %s" % (_get_icon.__name__, ex))
+            LOG.debug("[Colored Comments]: %s - %s", _get_icon.__name__, ex)
             pass
     return icon
 
