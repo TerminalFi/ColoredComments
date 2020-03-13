@@ -7,9 +7,11 @@ from os import path
 
 NAME = "Colored Comments"
 VERSION = "2.1.0"
+REGION_KEYS = list()
 SETTINGS = dict()
 TAG_MAP = dict()
 TAG_REGEX = OrderedDict()
+icon_path = "Packages/Colored Comments/icons"
 
 
 class ColorCommentsEventListener(sublime_plugin.EventListener):
@@ -24,20 +26,23 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         if self.view.match_selector(0, "text.plain"):
             return
-        global TAG_MAP, SETTINGS, TAG_REGEX
+        global TAG_MAP, SETTINGS, TAG_REGEX, REGION_KEYS
         get_settings()
 
         comment_selector = "comment - punctuation.definition.comment"
         regions = self.view.find_by_selector(comment_selector)
+        if not regions:
+            for region_key in REGION_KEYS:
+                self.view.erase_regions(region_key)
 
         if SETTINGS.get("prompt_new_color_scheme", True):
             color_scheme_manager = ColorManager(
                 "User/Colored Comments", TAG_MAP, SETTINGS, False
             )
             color_scheme_manager.create_user_custom_theme()
-        self.ApplyDecorations(TAG_REGEX, regions, TAG_MAP, SETTINGS)
+        self.ApplyDecorations(TAG_REGEX, regions, REGION_KEYS, TAG_MAP, SETTINGS)
 
-    def ApplyDecorations(self, delimiter, regions, tags, settings):
+    def ApplyDecorations(self, delimiter, regions, region_keys, tags, settings):
         to_decorate = dict()
 
         for tag in tags:
@@ -64,8 +69,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     to_decorate[tag_identifier] += [reg]
                     break
 
-            for value in to_decorate:
-                sel_tag = tags[value]
+            for key in to_decorate:
+                sel_tag = tags[key]
                 flags = self.get_tag_flags(sel_tag)
                 scope_to_use = ""
                 if "scope" in sel_tag.keys():
@@ -75,9 +80,11 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                         "colored.comments.color."
                         + sel_tag["color"]["name"].replace(" ", ".").lower()
                     )
-
+                if key.lower() not in region_keys:
+                    region_keys.append(key.lower())
+                icon = _get_icon()
                 self.view.add_regions(
-                    value, to_decorate[value], scope_to_use, "", flags
+                    key.lower(), to_decorate[key], scope_to_use, icon, flags
                 )
 
     def get_tag_flags(self, tag):
@@ -162,6 +169,20 @@ def get_settings():
     global TAG_MAP, SETTINGS
     SETTINGS = sublime.load_settings("colored_comments.sublime-settings")
     TAG_MAP = SETTINGS.get("tags", [])
+
+def _get_icon():
+    icon = ""
+    if SETTINGS.get("comment_icon_enabled", False):
+        icon = SETTINGS.get("comment_icon", "dots")
+        try:
+            icon = "%s/%s.png" % (icon_path, icon)
+            sublime.load_binary_resource(icon)
+        except Exception as e:
+            icon = ""
+            print(e)
+            pass
+    return icon
+
 
 
 def plugin_loaded():

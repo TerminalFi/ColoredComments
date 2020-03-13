@@ -1,19 +1,52 @@
 {
+    // Determines if you should be prompted for setting
+    // the color scheme on load of the plugin
     "prompt_new_color_scheme": true,
+
+    // Enables continued matching of the previous tag
     "continued_matching": true,
+
+    // Shows comment icon next to comments
+    "comment_icon_enabled": true,
+
+    // Which comment icon to use
+    // Valid options: comment, dots
+    "comment_icon": "dots",
+
+    // This is the list of tags/identifiers you want to highlight
+    // in your code.
     "tags":
     {
+        // Friendly name for you to know what the purpose is
+        // and used in the OrderedDict
+        // These should be unique
         "Important":
         {
+            // The actual identifier used to highlight the comments
             "identifier": "!",
+            // Enables sublime.DRAW_SOLID_UNDERLINE
+            // Only noticable if outline = true
             "underline": false,
+            // Enables sublime.DRAW_STIPPLED_UNDERLINE
+            // Only noticable if outline = true
             "stippled_underline": false,
+            // Enables sublime.DRAW_SSQUIGGLY_UNDERLINE
+            // Only noticable if outline = true
             "squiggly_underline": false,
+            // Enables sublime.DRAW_NO_FILL
+            // This disables coloring of text
+            // and allows for the outline of the text
             "outline": false,
+            // Colors used for Scope generation
             "color":
             {
+                // Scope name this becomes colored.comments.color.important
                 "name": "important",
+                // Color you want the text to be
                 "foreground": "#cc0000",
+                // Color you want the background to be
+                // this HAS to be slightly different than
+                // your themes background....Because Sublime
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
