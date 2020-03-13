@@ -98,11 +98,9 @@ class ColorManager:
 
         if self.regenerate:
             self.log.debug(
-                "[Colored Comments] : %s - %s"
-                % (
-                    self.create_user_custom_theme.__name__,
-                    "generating / regenerating theme",
-                )
+                "[Colored Comments] : %s - %s",
+                self.create_user_custom_theme.__name__,
+                "generating / regenerating theme",
             )
             try:
                 os.remove(new_cs_absolute)
@@ -165,7 +163,7 @@ class ColorManager:
                 "for details."
             )
             self.log.debug(
-                "[Colored Comments] : %s - %s" % (self.load_color_scheme.__name__, ex)
+                "[Colored Comments] : %s - %s", self.load_color_scheme.__name__, ex
             )
             raise
         updates_made = color_scheme = ""
