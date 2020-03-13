@@ -97,11 +97,6 @@ class ColorManager:
         updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
 
         if self.regenerate:
-            self.log.debug(
-                "[Colored Comments] : %s - %s",
-                self.create_user_custom_theme.__name__,
-                "generating / regenerating theme",
-            )
             try:
                 os.remove(new_cs_absolute)
             except OSError:
@@ -161,9 +156,6 @@ class ColorManager:
                 "An error occured while reading color "
                 + "scheme file. Please check the console "
                 "for details."
-            )
-            self.log.debug(
-                "[Colored Comments] : %s - %s", self.load_color_scheme.__name__, ex
             )
             raise
         updates_made = color_scheme = ""
