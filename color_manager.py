@@ -1,8 +1,9 @@
-import sublime
-
+import json
 import os
 import sys
-import json
+
+import sublime
+
 from . import plistlib
 
 SUBLIME_SETTINGS = "Preferences.sublime-settings"
@@ -11,11 +12,12 @@ SUBLIME_SETTINGS = "Preferences.sublime-settings"
 class ColorManager:
     update_preferences = True
 
-    def __init__(self, new_color_scheme_path, tags, settings, regenerate):
+    def __init__(self, new_color_scheme_path, tags, settings, regenerate, log):
         self.new_color_scheme_path = new_color_scheme_path
         self.tags = tags
         self.settings = settings
         self.regenerate = regenerate
+        self.log = log
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
         settings = color_scheme["rules"] if is_json else color_scheme["settings"]
@@ -95,7 +97,13 @@ class ColorManager:
         updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
 
         if self.regenerate:
-            print("[Colored Comments] Regenerating theme file")
+            self.log.debug(
+                "[Colored Comments] : %s - %s"
+                % (
+                    self.create_user_custom_theme.__name__,
+                    "generating / regenerating theme",
+                )
+            )
             try:
                 os.remove(new_cs_absolute)
             except OSError:
@@ -150,13 +158,15 @@ class ColorManager:
             if scheme in sublime_default_cs:
                 scheme = "Packages/Color Scheme - Default/" + scheme
             scheme_content = sublime.load_binary_resource(scheme)
-        except Exception as e:
+        except Exception as ex:
             sublime.error_message(
                 "An error occured while reading color "
                 + "scheme file. Please check the console "
                 "for details."
             )
-            print("[Colored Comments] " + e)
+            self.log.debug(
+                "[Colored Comments] : %s - %s" % (self.load_color_scheme.__name__, ex)
+            )
             raise
         updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):
