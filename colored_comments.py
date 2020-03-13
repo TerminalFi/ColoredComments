@@ -166,9 +166,8 @@ def generate_identifier_expression(tags):
                 priority = int(priority)
             except ValueError as ex:
                 LOG.debug(
-                    "[Colored Comments]: %s - %s",
-                    generate_identifier_expression.__name__,
-                    ex,
+                    "[Colored Comments]: %s - %s"
+                    % (generate_identifier_expression.__name__, ex)
                 )
                 priority = 2147483647
         if not unordered_tags.get(priority, False):
@@ -205,7 +204,6 @@ def _get_icon():
             sublime.load_binary_resource(icon)
         except OSError as ex:
             icon = ""
-            LOG.debug("[Colored Comments]: %s - %s", _get_icon.__name__, ex)
             pass
     return icon
 
@@ -224,8 +222,8 @@ def plugin_loaded():
     get_settings()
     global TAG_REGEX
     TAG_REGEX = generate_identifier_expression(TAG_MAP)
-    if SETTINGS.get("debug", False):
-        setup_logging()
+    # if SETTINGS.get("debug", False):
+    #     setup_logging()
 
 
 def plugin_unloaded():
