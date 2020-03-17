@@ -204,6 +204,7 @@ def _get_icon():
             sublime.load_binary_resource(icon)
         except OSError as ex:
             icon = ""
+            LOG.debug(str(ex))
             pass
     return icon
 
@@ -222,8 +223,8 @@ def plugin_loaded():
     get_settings()
     global TAG_REGEX
     TAG_REGEX = generate_identifier_expression(TAG_MAP)
-    # if SETTINGS.get("debug", False):
-    #     setup_logging()
+    if SETTINGS.get("debug", False):
+        setup_logging()
 
 
 def plugin_unloaded():

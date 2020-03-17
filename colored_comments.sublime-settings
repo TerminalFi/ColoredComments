@@ -75,13 +75,25 @@
         },
         "TODO":
         {
-            "identifier": "TODO",
             "color":
             {
-                "name": "todo",
+                "background": "rgba(1,22,38, 0.1)",
                 "foreground": "#ff9900",
-                "background": "rgba(1,22,38, 0.1)"
+                "name": "todo"
             },
+            "identifier": "TODO[:]?|todo[:]?",
+            "is_regex": true
+        },
+        "FIXME":
+        {
+            "color":
+            {
+                "background": "rgba(1,22,38, 0.1)",
+                "foreground": "#cccc00",
+                "name": "fixme"
+            },
+            "identifier": "FIXME[:]?|fixme[:]?",
+            "is_regex": true
         }
     }
 }
