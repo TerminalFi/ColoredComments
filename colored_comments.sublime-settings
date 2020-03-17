@@ -46,7 +46,7 @@
                 // Scope name this becomes colored.comments.color.important
                 "name": "important",
                 // Color you want the text to be
-                "foreground": "#cc0000",
+                "foreground": "#FF2D00",
                 // Color you want the background to be
                 // this HAS to be slightly different than
                 // your themes background....Because Sublime
@@ -59,7 +59,7 @@
             "color":
             {
                 "name": "deprecated",
-                "foreground": "#9933ff",
+                "foreground": "#98C379",
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
@@ -69,7 +69,7 @@
             "color":
             {
                 "name": "question",
-                "foreground": "#0099ff",
+                "foreground": "#3498DB",
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
@@ -78,7 +78,7 @@
             "color":
             {
                 "background": "rgba(1,22,38, 0.1)",
-                "foreground": "#ff9900",
+                "foreground": "#FF8C00",
                 "name": "todo"
             },
             "identifier": "TODO[:]?|todo[:]?",
@@ -89,10 +89,21 @@
             "color":
             {
                 "background": "rgba(1,22,38, 0.1)",
-                "foreground": "#cccc00",
+                "foreground": "#9933FF",
                 "name": "fixme"
             },
             "identifier": "FIXME[:]?|fixme[:]?",
+            "is_regex": true
+        },
+        "UNDEFINED":
+        {
+            "color":
+            {
+                "background": "rgba(1,22,38, 0.1)",
+                "foreground": "#474747",
+                "name": "undefined"
+            },
+            "identifier": "//[:]?",
             "is_regex": true
         }
     }
