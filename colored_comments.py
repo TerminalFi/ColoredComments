@@ -11,14 +11,16 @@ import sublime_plugin
 from .color_manager import ColorManager
 
 NAME = "Colored Comments"
-VERSION = "2.1.1"
-LOG = logging.Logger
+VERSION = "2.1.5"
 
+log = logging.Logger
 REGION_KEYS = list()
 SETTINGS = dict()
 TAG_MAP = dict()
 TAG_REGEX = OrderedDict()
+scheme_path = "User/Colored Comments"
 icon_path = "Packages/Colored Comments/icons"
+settings_path = "colored_comments.sublime-settings"
 
 
 class ColorCommentsEventListener(sublime_plugin.EventListener):
@@ -46,7 +48,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
         if self.settings.get("prompt_new_color_scheme", True):
             color_scheme_manager = ColorManager(
-                "User/Colored Comments", self.tag_map, self.settings, False, LOG
+                scheme_path, self.tag_map, self.settings, False, log
             )
             color_scheme_manager.create_user_custom_theme()
 
@@ -126,7 +128,7 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
 
         TAG_REGEX = generate_identifier_expression(self.tag_map)
         color_scheme_manager = ColorManager(
-            "User/Colored Comments", self.tag_map, self.settings, True, LOG
+            scheme_path, self.tag_map, self.settings, True, log
         )
         color_scheme_manager.create_user_custom_theme()
 
@@ -144,7 +146,7 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
             preferences.set("color_scheme", old_color_scheme)
         sublime.save_settings("Preferences.sublime-settings")
         self.settings.erase("old_color_scheme")
-        sublime.save_settings("colored_comments.sublime-settings")
+        sublime.save_settings(settings_path)
 
 
 def escape_regex(pattern):
@@ -165,7 +167,7 @@ def generate_identifier_expression(tags):
             try:
                 priority = int(priority)
             except ValueError as ex:
-                LOG.debug(
+                log.debug(
                     "[Colored Comments]: %s - %s"
                     % (generate_identifier_expression.__name__, ex)
                 )
@@ -191,7 +193,7 @@ def generate_identifier_expression(tags):
 
 def get_settings():
     global TAG_MAP, SETTINGS
-    SETTINGS = sublime.load_settings("colored_comments.sublime-settings")
+    SETTINGS = sublime.load_settings(settings_path)
     TAG_MAP = SETTINGS.get("tags", [])
 
 
@@ -204,31 +206,33 @@ def _get_icon():
             sublime.load_binary_resource(icon)
         except OSError as ex:
             icon = ""
+            log.debug("%s" % ex)
             pass
     return icon
 
 
 def setup_logging():
-    global LOG
-    LOG = logging.getLogger(__name__)
+    global log
+    log = logging.getLogger(__name__)
     out_hdlr = logging.StreamHandler(sys.stdout)
     out_hdlr.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
     out_hdlr.setLevel(logging.DEBUG)
-    LOG.addHandler(out_hdlr)
-    LOG.setLevel(logging.DEBUG)
+    log.addHandler(out_hdlr)
 
 
 def plugin_loaded():
+    global log
     get_settings()
     global TAG_REGEX
     TAG_REGEX = generate_identifier_expression(TAG_MAP)
-    # if SETTINGS.get("debug", False):
-    #     setup_logging()
+    setup_logging()
+    if SETTINGS.get("debug", False):
+        log.setLevel(logging.DEBUG)
 
 
 def plugin_unloaded():
     preferences = sublime.load_settings("Preferences.sublime-settings")
-    cc_preferences = sublime.load_settings("colored_comments.sublime-settings")
+    cc_preferences = sublime.load_settings(settings_path)
     old_color_scheme = cc_preferences.get("old_color_scheme", "")
     if old_color_scheme != "":
         preferences.set("color_scheme", old_color_scheme)

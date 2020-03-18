@@ -99,7 +99,8 @@ class ColorManager:
         if self.regenerate:
             try:
                 os.remove(new_cs_absolute)
-            except OSError:
+            except OSError as ex:
+                self.log.debug(str(ex))
                 pass
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
@@ -135,7 +136,7 @@ class ColorManager:
                     self.settings.set("prompt_new_color_scheme", False)
                     sublime.save_settings("colored_comments.sublime-settings")
                 else:
-                    ColorManager.update_preferences = False
+                    ColorManager.update_preferences = True
 
     def load_color_scheme(self, scheme):
         scheme_content = b""
@@ -157,6 +158,7 @@ class ColorManager:
                 + "scheme file. Please check the console "
                 "for details."
             )
+            self.log.debug(str(ex))
             raise
         updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):
