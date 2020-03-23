@@ -46,6 +46,7 @@ This should be used if there are multiple tags that could match on the same thin
 
 ### Scope Examples
 Taken from [Sublime MiniHTML Reference](https://www.sublimetext.com/docs/3/minihtml.html#predefined_variables)
+
 - region.background
 - region.foreground
 - region.accent
