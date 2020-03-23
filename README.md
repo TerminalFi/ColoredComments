@@ -27,6 +27,7 @@ The following are global settings for ColoredComments
 
 ## New Highlights
 Add new tags easily with the following format. Keep in mind the following:
+
 - **identifiers**: These can be _plaintext_ or _regex_ patterns. If they are _regex_ be sure to set the _is_regex_ property to `true`
 - **is_regex**: Set this to `true` if your identifier is a _regex_
 - **priority**: This setting is critical if you want to prioritize tag settings. **Default**: 2147483647
