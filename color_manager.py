@@ -4,7 +4,7 @@ import sys
 
 import sublime
 
-from . import plistlib
+from .lib import plistlib
 
 SUBLIME_SETTINGS = "Preferences.sublime-settings"
 
@@ -29,9 +29,9 @@ class ColorManager:
             if "color" not in curr_tag.keys():
                 continue
 
-            color_name = _get_color_name(curr_tag)
-            color_background = _get_color_background(curr_tag)
-            color_foreground = _get_color_foreground(curr_tag)
+            color_name = _get_color_property("name", curr_tag)
+            color_background = _get_color_property("background", curr_tag)
+            color_foreground = _get_color_property("foreground", curr_tag)
 
             scope_name = "colored.comments.color."
             scope = scope_name + color_name.replace(" ", ".").lower()
@@ -43,8 +43,8 @@ class ColorManager:
 
             if not scope_exist:
                 updates_made = True
-                entry = {}
-                entry["name"] = "[Colored Comments] " + color_name.title()
+                entry = dict()
+                entry["name"] = "[Colored Comments] {}".format(color_name.title())
                 entry["scope"] = scope
                 if is_json:
                     entry["foreground"] = color_foreground
@@ -176,29 +176,11 @@ class ColorManager:
         return updates_made, color_scheme, is_json
 
 
-def _get_color_name(tags):
+def _get_color_property(property, tags):
     if not tags.get("color", False):
         return "colored_comments_default"
 
-    if not tags["color"].get("name", False):
+    if not tags["color"].get(property, False):
         return "colored_comments_default"
 
-    return tags["color"]["name"]
-
-
-def _get_color_background(tags):
-    if not tags.get("color", False):
-        return "colored_comments_default"
-
-    if not tags["color"].get("background", False):
-        return "colored_comments_default"
-    return tags["color"]["background"]
-
-
-def _get_color_foreground(tags):
-    if not tags.get("color", False):
-        return "colored_comments_default"
-
-    if not tags["color"].get("foreground", False):
-        return "colored_comments_default"
-    return tags["color"]["foreground"]
+    return tags["color"][property]
