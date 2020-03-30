@@ -11,7 +11,7 @@ import sublime_plugin
 from .color_manager import ColorManager
 
 NAME = "Colored Comments"
-VERSION = "2.1.5"
+VERSION = "2.3.0"
 
 log = logging.Logger
 REGION_KEYS = list()
