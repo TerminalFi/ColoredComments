@@ -11,7 +11,7 @@ import sublime_plugin
 from .color_manager import ColorManager
 
 NAME = "Colored Comments"
-VERSION = "2.3.0"
+VERSION = "2.3.1"
 
 log = logging.Logger
 REGION_KEYS = list()
@@ -26,6 +26,10 @@ comment_selector = "comment - punctuation.definition.comment"
 
 
 class ColoredCommentsEventListener(sublime_plugin.EventListener):
+    def on_init(self, views):
+        for view in views:
+            view.run_command("colored_comments")
+
     def on_load_async(self, view):
         view.run_command("colored_comments")
 
