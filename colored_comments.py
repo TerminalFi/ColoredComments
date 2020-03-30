@@ -26,6 +26,10 @@ comment_selector = "comment - punctuation.definition.comment"
 
 
 class ColoredCommentsEventListener(sublime_plugin.EventListener):
+    def on_init(self, views):
+        for view in views:
+            view.run_command("colored_comments")
+
     def on_load_async(self, view):
         view.run_command("colored_comments")
 
