@@ -46,8 +46,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
         regions = self.view.find_by_selector(comment_selector)
         if self.settings.get("prompt_new_color_scheme", False):
-            color_scheme_manager.update_preferences = True
-            color_scheme_manager.create_user_custom_theme()
+            if color_scheme_manager.update_preferences:
+                color_scheme_manager.create_user_custom_theme()
 
         self.ClearDecorations(regions)
         self.ApplyDecorations(regions)
@@ -76,8 +76,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                             and previous_match != ""
                             # todo Customizable Setting
                             # - Implement a way to customiz
-                            # - this setting via the settings
-                            # - file
+                            # - this setting via the settings ss
+                            # - files
                             and line[0] == "-"
                         ):
                             to_decorate[previous_match] += [reg]

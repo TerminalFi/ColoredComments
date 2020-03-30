@@ -16,7 +16,7 @@ class ColorManager:
         self.settings = settings
         self.regenerate = regenerate
         self.log = log
-        self.update_preferences = False
+        self.update_preferences = True
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
         settings = color_scheme["rules"] if is_json else color_scheme["settings"]
