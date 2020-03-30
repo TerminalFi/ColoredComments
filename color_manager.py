@@ -10,14 +10,13 @@ SUBLIME_SETTINGS = "Preferences.sublime-settings"
 
 
 class ColorManager:
-    update_preferences = True
-
     def __init__(self, new_color_scheme_path, tags, settings, regenerate, log):
         self.new_color_scheme_path = new_color_scheme_path
         self.tags = tags
         self.settings = settings
         self.regenerate = regenerate
         self.log = log
+        self.update_preferences = False
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
         settings = color_scheme["rules"] if is_json else color_scheme["settings"]
@@ -118,7 +117,7 @@ class ColorManager:
                     outfile.write(plistlib.dumps(color_scheme))
 
         if sublime_cs != new_cs:
-            if ColorManager.update_preferences:
+            if self.update_preferences:
                 okay = sublime.ok_cancel_dialog(
                     "Would you like to change "
                     + "your color scheme to '"
@@ -135,8 +134,9 @@ class ColorManager:
                     sublime.save_settings("Preferences.sublime-settings")
                     self.settings.set("prompt_new_color_scheme", False)
                     sublime.save_settings("colored_comments.sublime-settings")
+                    self.update_preferences = False
                 else:
-                    ColorManager.update_preferences = True
+                    self.update_preferences = False
 
     def load_color_scheme(self, scheme):
         scheme_content = b""

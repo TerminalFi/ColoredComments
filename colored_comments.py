@@ -18,17 +18,18 @@ REGION_KEYS = list()
 SETTINGS = dict()
 TAG_MAP = dict()
 TAG_REGEX = OrderedDict()
+color_scheme_manager = ColorManager
 scheme_path = "User/Colored Comments"
 icon_path = "Packages/Colored Comments/icons"
 settings_path = "colored_comments.sublime-settings"
 comment_selector = "comment - punctuation.definition.comment"
 
 
-class ColorCommentsEventListener(sublime_plugin.EventListener):
-    def on_load(self, view):
+class ColoredCommentsEventListener(sublime_plugin.EventListener):
+    def on_load_async(self, view):
         view.run_command("colored_comments")
 
-    def on_modified(self, view):
+    def on_modified_async(self, view):
         view.run_command("colored_comments")
 
 
@@ -44,11 +45,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             return
 
         regions = self.view.find_by_selector(comment_selector)
-        print(self.settings.get("prompt_new_color_scheme", False))
         if self.settings.get("prompt_new_color_scheme", False):
-            color_scheme_manager = ColorManager(
-                scheme_path, self.tag_map, self.settings, False, log
-            )
+            color_scheme_manager.update_preferences = True
             color_scheme_manager.create_user_custom_theme()
 
         self.ClearDecorations(regions)
@@ -77,7 +75,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                             and self.settings.get("continued_matching")
                             and previous_match != ""
                             # todo Customizable Setting
-                            # - Implement a way to customize
+                            # - Implement a way to customiz
                             # - this setting via the settings
                             # - file
                             and line[0] == "-"
@@ -139,9 +137,8 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
         self.settings = SETTINGS
         self.tag_map = TAG_MAP
 
-        color_scheme_manager = ColorManager(
-            scheme_path, self.tag_map, self.settings, True, log
-        )
+        color_scheme_manager.update_preferences = True
+        color_scheme_manager.regenerate = True
         color_scheme_manager.create_user_custom_theme()
 
 
@@ -234,11 +231,19 @@ def setup_logging():
 def plugin_loaded():
     global log
     load_settings()
-    global TAG_REGEX
+    global TAG_REGEX, color_scheme_manager, TAG_MAP, SETTINGS
     TAG_REGEX = generate_identifier_expression(TAG_MAP)
     setup_logging()
     if SETTINGS.get("debug", False):
         log.setLevel(logging.DEBUG)
+
+    color_scheme_manager = ColorManager(
+        new_color_scheme_path=scheme_path,
+        tags=TAG_MAP,
+        settings=SETTINGS,
+        regenerate=False,
+        log=log,
+    )
 
 
 def plugin_unloaded():
