@@ -19,6 +19,8 @@ region_keys = list()
 settings = dict()
 tag_map = dict()
 tag_regex = OrderedDict()
+continued_matching = bool()
+icon = str()
 color_scheme_manager = ColorManager
 
 scheme_path = "User/Colored Comments"
@@ -46,6 +48,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         self.tag_map = tag_map
         self.region_keys = region_keys
         self.tag_regex = tag_regex
+        self.regions = self.view.find_by_selector(comment_selector)
 
         if self.view.match_selector(0, "text.plain"):
             return
@@ -54,44 +57,36 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             if color_scheme_manager.update_preferences:
                 color_scheme_manager.create_user_custom_theme()
 
-        regions = self.view.find_by_selector(comment_selector)
+        self.ClearDecorations()
+        self.ApplyDecorations()
 
-        self.ClearDecorations(regions)
-        import time
+    def ClearDecorations(self):
+        for region_key in self.region_keys:
+            self.view.erase_regions(region_key)
 
-        start = time.time()
-        self.ApplyDecorations(regions)
-        print(time.time() - start)
-
-    def ClearDecorations(self, regions):
-        if not regions:
-            for region_key in self.region_keys:
-                self.view.erase_regions(region_key)
-
-    def ApplyDecorations(self, regions):
+    def ApplyDecorations(self):
         to_decorate = dict()
-        previous_match = str()
-        for region in regions:
+        prev_match = str()
+        for region in self.regions:
             for reg in self.view.split_by_newlines(region):
                 line = self.view.substr(reg).strip()
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(line)
                     if not matches:
                         if (
-                            len(line) != 0
-                            and self.settings.get("continued_matching")
-                            and previous_match != ""
+                            continued_matching
+                            and prev_match
+                            and line
                             # todo Customizable settings
                             # - Implement a way to customize
                             # - this setting via the settings
-                            # - files
                             and line[0] == "-"
                         ):
-                            to_decorate.setdefault(previous_match, []).append(reg)
+                            to_decorate.setdefault(prev_match, []).append(reg)
                         else:
-                            previous_match = ""
+                            prev_match = str()
                         continue
-                    previous_match = tag_identifier
+                    prev_match = tag_identifier
                     to_decorate.setdefault(tag_identifier, []).append(reg)
                     break
 
@@ -106,23 +101,13 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                         "colored.comments.color."
                         + sel_tag["color"]["name"].replace(" ", ".").lower()
                     )
-
-                icon = _get_icon()
-                if icon is not None:
-                    self.view.add_regions(
-                        key=key.lower(),
-                        regions=to_decorate[key],
-                        scope=scope_to_use,
-                        icon=icon,
-                        flags=flags,
-                    )
-                else:
-                    self.view.add_regions(
-                        key=key.lower(),
-                        regions=to_decorate[key],
-                        scope=scope_to_use,
-                        flags=flags,
-                    )
+                self.view.add_regions(
+                    key=key.lower(),
+                    regions=to_decorate[key],
+                    scope=scope_to_use,
+                    icon=icon,
+                    flags=flags,
+                )
 
     def _get_tag_flags(self, tag):
         options = {
@@ -140,9 +125,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        self.settings = settings
-        self.tag_map = tag_map
-
+        global color_scheme_manager
         color_scheme_manager.update_preferences = True
         color_scheme_manager.regenerate = True
         color_scheme_manager.create_user_custom_theme()
@@ -150,16 +133,16 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        self.settings = settings
+        global settings
 
         preferences = sublime.load_settings("Preferences.sublime-settings")
-        old_color_scheme = self.settings.get("old_color_scheme", "")
+        old_color_scheme = settings.get("old_color_scheme", "")
         if old_color_scheme == "" or not path.exists(old_color_scheme):
             preferences.erase("color_scheme")
         else:
             preferences.set("color_scheme", old_color_scheme)
         sublime.save_settings("Preferences.sublime-settings")
-        self.settings.erase("old_color_scheme")
+        settings.erase("old_color_scheme")
         sublime.save_settings(settings_path)
 
 
@@ -202,8 +185,7 @@ def generate_identifier_expression(tags):
     return identifiers
 
 
-def _generate_region_keys(tag_map):
-    global region_keys
+def _generate_region_keys(region_keys, tag_map):
     for key in tag_map:
         if key.lower() not in region_keys:
             region_keys.append(key.lower())
@@ -217,16 +199,17 @@ def _get_icon():
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
         except OSError as ex:
-            log.debug("%s" % ex)
-            icon = None
+            log.debug("{}".format(ex))
+            icon = str()
             pass
     return icon
 
 
 def load_settings():
-    global tag_map, settings
+    global tag_map, settings, continued_matching
     settings = sublime.load_settings(settings_path)
     tag_map = settings.get("tags", [])
+    continued_matching = settings.get("continued_matching", False)
 
 
 def setup_logging():
@@ -239,12 +222,15 @@ def setup_logging():
 
 
 def plugin_loaded():
-    global log
+    global tag_regex, tag_map, region_keys
+    global log, icon, color_scheme_manager, settings
     load_settings()
-    global tag_regex, tag_map, region_keys, color_scheme_manager, settings
-    tag_regex = generate_identifier_expression(tag_map)
-    _generate_region_keys(tag_map)
     setup_logging()
+
+    tag_regex = generate_identifier_expression(tag_map)
+    _generate_region_keys(region_keys, tag_map)
+    icon = _get_icon()
+
     if settings.get("debug", False):
         log.setLevel(logging.DEBUG)
 
