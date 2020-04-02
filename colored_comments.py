@@ -49,6 +49,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             return
 
         regions = self.view.find_by_selector(comment_selector)
+
         if self.settings.get("prompt_new_color_scheme", False):
             if color_scheme_manager.update_preferences:
                 color_scheme_manager.create_user_custom_theme()
@@ -78,9 +79,9 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                             len(line) != 0
                             and self.settings.get("continued_matching")
                             and previous_match != ""
-                            # todo Customizable Setting
-                            # - Implement a way to customiz
-                            # - this setting via the settings ss
+                            # todo Customizable Settings
+                            # - Implement a way to customize
+                            # - this setting via the settings
                             # - files
                             and line[0] == "-"
                         ):
@@ -170,36 +171,33 @@ def escape_regex(pattern):
 
 def generate_identifier_expression(tags):
     unordered_tags = dict()
-    ordered_tags = OrderedDict()
     identifiers = OrderedDict()
     for key, value in tags.items():
         priority = 2147483647
         if value.get("priority", False):
-            priority = value.get("priority")
+            tag_priority = value.get("priority")
             try:
-                priority = int(priority)
+                tag_priority = int(priority)
+                priority = tag_priority
             except ValueError as ex:
                 log.debug(
-                    "[Colored Comments]: %s - %s"
-                    % (generate_identifier_expression.__name__, ex)
+                    "[Colored Comments]: {} - {}".format(
+                        generate_identifier_expression.__name__, ex
+                    )
                 )
-                priority = 2147483647
-        if not unordered_tags.get(priority, False):
-            unordered_tags[priority] = list()
-        unordered_tags[priority] += [{"name": key, "settings": value}]
+        unordered_tags.setdefault(priority, list()).append(
+            {"name": key, "settings": value}
+        )
     for key in sorted(unordered_tags):
-        ordered_tags[key] = unordered_tags[key]
-
-    for key, value in ordered_tags.items():
-        for tag in value:
-            tag_identifier = "^("
-            tag_identifier += (
+        for tag in unordered_tags[key]:
+            tag_identifier = ["^("]
+            tag_identifier.append(
                 tag["settings"]["identifier"]
                 if tag["settings"].get("is_regex", False)
                 else escape_regex(tag["settings"]["identifier"])
             )
-            tag_identifier += ")[ \t]+(?:.*)"
-            identifiers[tag["name"]] = regex.compile(tag_identifier)
+            tag_identifier.append(")[ \t]+(?:.*)")
+            identifiers[tag["name"]] = regex.compile("".join(tag_identifier))
     return identifiers
 
 
