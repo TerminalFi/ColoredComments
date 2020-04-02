@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from collections import OrderedDict
 from os import path
@@ -11,14 +12,15 @@ import sublime_plugin
 from .color_manager import ColorManager
 
 NAME = "Colored Comments"
-VERSION = "2.3.1"
+VERSION = "2.3.3"
 
 log = logging.Logger
-REGION_KEYS = list()
-SETTINGS = dict()
-TAG_MAP = dict()
-TAG_REGEX = OrderedDict()
+region_keys = list()
+settings = dict()
+tag_map = dict()
+tag_regex = OrderedDict()
 color_scheme_manager = ColorManager
+
 scheme_path = "User/Colored Comments"
 icon_path = "Packages/Colored Comments/icons"
 settings_path = "colored_comments.sublime-settings"
@@ -39,23 +41,27 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global SETTINGS, TAG_MAP, TAG_REGEX, REGION_KEYS
-        self.settings = SETTINGS
-        self.tag_map = TAG_MAP
-        self.region_keys = REGION_KEYS
-        self.tag_regex = TAG_REGEX
+        global settings, tag_map, tag_regex, region_keys
+        self.settings = settings
+        self.tag_map = tag_map
+        self.region_keys = region_keys
+        self.tag_regex = tag_regex
 
         if self.view.match_selector(0, "text.plain"):
             return
-
-        regions = self.view.find_by_selector(comment_selector)
 
         if self.settings.get("prompt_new_color_scheme", False):
             if color_scheme_manager.update_preferences:
                 color_scheme_manager.create_user_custom_theme()
 
+        regions = self.view.find_by_selector(comment_selector)
+
         self.ClearDecorations(regions)
+        import time
+
+        start = time.time()
         self.ApplyDecorations(regions)
+        print(time.time() - start)
 
     def ClearDecorations(self, regions):
         if not regions:
@@ -64,11 +70,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
     def ApplyDecorations(self, regions):
         to_decorate = dict()
-
-        for tag in self.tag_map:
-            to_decorate[tag] = []
-
-        previous_match = ""
+        previous_match = str()
         for region in regions:
             for reg in self.view.split_by_newlines(region):
                 line = self.view.substr(reg).strip()
@@ -79,18 +81,18 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                             len(line) != 0
                             and self.settings.get("continued_matching")
                             and previous_match != ""
-                            # todo Customizable Settings
+                            # todo Customizable settings
                             # - Implement a way to customize
                             # - this setting via the settings
                             # - files
                             and line[0] == "-"
                         ):
-                            to_decorate[previous_match] += [reg]
+                            to_decorate.setdefault(previous_match, []).append(reg)
                         else:
                             previous_match = ""
                         continue
                     previous_match = tag_identifier
-                    to_decorate[tag_identifier] += [reg]
+                    to_decorate.setdefault(tag_identifier, []).append(reg)
                     break
 
             for key in to_decorate:
@@ -104,8 +106,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                         "colored.comments.color."
                         + sel_tag["color"]["name"].replace(" ", ".").lower()
                     )
-                if key.lower() not in self.region_keys:
-                    self.region_keys.append(key.lower())
+
                 icon = _get_icon()
                 if icon is not None:
                     self.view.add_regions(
@@ -139,8 +140,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        self.settings = SETTINGS
-        self.tag_map = TAG_MAP
+        self.settings = settings
+        self.tag_map = tag_map
 
         color_scheme_manager.update_preferences = True
         color_scheme_manager.regenerate = True
@@ -149,7 +150,7 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        self.settings = SETTINGS
+        self.settings = settings
 
         preferences = sublime.load_settings("Preferences.sublime-settings")
         old_color_scheme = self.settings.get("old_color_scheme", "")
@@ -201,10 +202,17 @@ def generate_identifier_expression(tags):
     return identifiers
 
 
+def _generate_region_keys(tag_map):
+    global region_keys
+    for key in tag_map:
+        if key.lower() not in region_keys:
+            region_keys.append(key.lower())
+
+
 def _get_icon():
     icon = None
-    if SETTINGS.get("comment_icon_enabled", False):
-        icon = SETTINGS.get("comment_icon", "dots")
+    if settings.get("comment_icon_enabled", False):
+        icon = settings.get("comment_icon", "dots")
         try:
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
@@ -216,9 +224,9 @@ def _get_icon():
 
 
 def load_settings():
-    global TAG_MAP, SETTINGS
-    SETTINGS = sublime.load_settings(settings_path)
-    TAG_MAP = SETTINGS.get("tags", [])
+    global tag_map, settings
+    settings = sublime.load_settings(settings_path)
+    tag_map = settings.get("tags", [])
 
 
 def setup_logging():
@@ -233,16 +241,23 @@ def setup_logging():
 def plugin_loaded():
     global log
     load_settings()
-    global TAG_REGEX, color_scheme_manager, TAG_MAP, SETTINGS
-    TAG_REGEX = generate_identifier_expression(TAG_MAP)
+    global tag_regex, tag_map, region_keys, color_scheme_manager, settings
+    tag_regex = generate_identifier_expression(tag_map)
+    _generate_region_keys(tag_map)
     setup_logging()
-    if SETTINGS.get("debug", False):
+    if settings.get("debug", False):
         log.setLevel(logging.DEBUG)
+
+    sublime_preferences = sublime.load_settings("Preferences.sublime-settings")
+    sublime_cs = sublime_preferences.get("color_scheme")
+    if os.path.basename(sublime_cs)[0:16] != "Colored Comments":
+        settings.set("old_color_scheme", sublime_cs)
+        sublime.save_settings("colored_comments.sublime-settings")
 
     color_scheme_manager = ColorManager(
         new_color_scheme_path=scheme_path,
-        tags=TAG_MAP,
-        settings=SETTINGS,
+        tags=tag_map,
+        settings=settings,
         regenerate=False,
         log=log,
     )
