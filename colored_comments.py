@@ -200,7 +200,7 @@ def _get_icon():
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
         except OSError as ex:
-            log.debug("{}".format(ex))
+            log.debug("[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
             icon = str()
             pass
     return icon

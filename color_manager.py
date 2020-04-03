@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from string import Template
 
 import sublime
 
@@ -8,6 +9,19 @@ from .lib import plistlib
 
 sublime_settings = "Preferences.sublime-settings"
 scope_name = "colored.comments.color."
+update_color_scheme_message = Template(
+    """Would you like to change your color scheme to '$scheme'? 
+To permanently disable this prompt, set 
+'prompt_new_color_scheme' to false in 
+the Colored Comments settings"""
+)
+sublime_default_cs = [
+    "Mariana.sublime-color-scheme",
+    "Celeste.sublime-color-scheme",
+    "Monokai.sublime-color-scheme",
+    "Breakers.sublime-color-schem",
+    "Sixteen.sublime-color-scheme",
+]
 
 
 class ColorManager:
@@ -21,8 +35,8 @@ class ColorManager:
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
         settings = color_scheme["rules"] if is_json else color_scheme["settings"]
-        scope_exist = False
-        updates_made = False
+        scope_exist = bool()
+        updates_made = bool()
 
         for tag in self.tags:
             curr_tag = self.tags[tag]
@@ -120,17 +134,9 @@ class ColorManager:
 
         if sublime_cs != new_cs:
             if self.update_preferences:
-                okay = sublime.ok_cancel_dialog(
-                    """
-Would you like to change your color scheme to '{}'? 
-To permanently disable this prompt, set 
-'prompt_new_color_scheme' to false in 
-the Colored Comments settings""".format(
-                        new_cs
-                    )
-                )
-
-                if okay:
+                if sublime.ok_cancel_dialog(
+                    update_color_scheme_message.substitute(scheme=new_cs)
+                ):
                     sublime_preferences.set("color_scheme", new_cs)
                     sublime.save_settings("Preferences.sublime-settings")
                     self.settings.set("prompt_new_color_scheme", False)
@@ -143,26 +149,18 @@ the Colored Comments settings""".format(
         scheme_content = b""
         is_json = False
         try:
-            sublime_default_cs = [
-                "Mariana.sublime-color-scheme",
-                "Celeste.sublime-color-scheme",
-                "Monokai.sublime-color-scheme",
-                "Breakers.sublime-color-schem",
-                "Sixteen.sublime-color-scheme",
-            ]
             if scheme in sublime_default_cs:
                 scheme = "{}{}".format("Packages/Color Scheme - Default/", scheme)
             scheme_content = sublime.load_binary_resource(scheme)
         except Exception as ex:
-            sublime.error_message(
-                """
-                An error occured while reading color "
-                scheme file. Please check the console 
-                for details."""
+            sublime.error_message("Check Console - Error Encountered")
+            self.log.debug(
+                "[Colored Comments]: {} - {}".format(
+                    self.load_color_scheme.__name__, ex
+                )
             )
-            self.log.debug(str(ex))
             raise
-        updates_made = color_scheme = ""
+        updates_made = color_scheme = str()
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
             updates_made, color_scheme = self._add_colors_to_scheme(
