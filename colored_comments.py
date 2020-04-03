@@ -78,8 +78,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                             and prev_match
                             and line
                             # todo Customizable settings
-                            # - Implement a way to customize
-                            # - this setting via the settings
                             and line[0] == "-"
                         ):
                             to_decorate.setdefault(prev_match, []).append(reg)
