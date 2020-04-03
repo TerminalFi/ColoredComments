@@ -20,6 +20,7 @@ settings = dict()
 tag_map = dict()
 tag_regex = OrderedDict()
 continued_matching = bool()
+continued_matching_pattern = str()
 icon = str()
 color_scheme_manager = ColorManager
 
@@ -69,16 +70,18 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                line = self.view.substr(reg).strip()
+                # ~ Strip the first space from the comment
+                line = self.view.substr(reg)[1:]
                 for tag_identifier in self.tag_regex:
-                    matches = self.tag_regex[tag_identifier].search(line)
+                    matches = self.tag_regex[tag_identifier].search(
+                        self.view.substr(reg).strip()
+                    )
                     if not matches:
                         if (
                             continued_matching
                             and prev_match
                             and line
-                            # todo Customizable settings
-                            and line[0] == "-"
+                            and line.startswith(continued_matching_pattern)
                         ):
                             to_decorate.setdefault(prev_match, []).append(reg)
                         else:
@@ -204,10 +207,11 @@ def _get_icon():
 
 
 def load_settings():
-    global tag_map, settings, continued_matching
+    global tag_map, settings, continued_matching, continued_matching_pattern
     settings = sublime.load_settings(settings_path)
     tag_map = settings.get("tags", [])
     continued_matching = settings.get("continued_matching", False)
+    continued_matching_pattern = settings.get("continued_matching_pattern", "-")
 
 
 def setup_logging():

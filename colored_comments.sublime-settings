@@ -9,6 +9,9 @@
     // Enables continued matching of the previous tag
     "continued_matching": true,
 
+    // Character to continue matching on
+    "continued_matching_pattern": "-",
+
     // Shows comment icon next to comments
     "comment_icon_enabled": true,
 
