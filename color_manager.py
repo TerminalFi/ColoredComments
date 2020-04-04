@@ -9,8 +9,9 @@ from .lib import plistlib
 
 sublime_settings = "Preferences.sublime-settings"
 scope_name = "colored.comments.color."
-update_color_scheme_message = Template(
-    """Would you like to change your color scheme to '$scheme'? 
+MSG = Template(
+    """
+Would you like to change your color scheme to '$scheme'? 
 To permanently disable this prompt, set 
 'prompt_new_color_scheme' to false in 
 the Colored Comments settings"""
@@ -133,34 +134,35 @@ class ColorManager:
                     outfile.write(plistlib.dumps(color_scheme))
 
         if sublime_cs != new_cs:
-            if self.update_preferences:
-                if sublime.ok_cancel_dialog(
-                    update_color_scheme_message.substitute(scheme=new_cs)
-                ):
-                    sublime_preferences.set("color_scheme", new_cs)
-                    sublime.save_settings("Preferences.sublime-settings")
-                    self.settings.set("prompt_new_color_scheme", False)
-                    sublime.save_settings("colored_comments.sublime-settings")
-                    self.update_preferences = False
-                else:
-                    self.update_preferences = False
+            if self.update_preferences and sublime.ok_cancel_dialog(
+                MSG.substitute(scheme=new_cs)
+            ):
+                sublime_preferences.set("color_scheme", new_cs)
+                sublime.save_settings("Preferences.sublime-settings")
+                self.settings.set("prompt_new_color_scheme", False)
+                sublime.save_settings("colored_comments.sublime-settings")
+                self.update_preferences = False
+            else:
+                self.update_preferences = False
 
     def load_color_scheme(self, scheme):
         scheme_content = b""
         is_json = False
         try:
+
             if scheme in sublime_default_cs:
                 scheme = "{}{}".format("Packages/Color Scheme - Default/", scheme)
             scheme_content = sublime.load_binary_resource(scheme)
         except Exception as ex:
-            sublime.error_message("Check Console - Error Encountered")
-            self.log.debug(
-                "[Colored Comments]: {} - {}".format(
-                    self.load_color_scheme.__name__, ex
-                )
+            sublime.error_message(
+                """
+                An error occured while reading color "
+                scheme file. Please check the console 
+                for details."""
             )
+            self.log.debug(str(ex))
             raise
-        updates_made = color_scheme = str()
+        updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
             updates_made, color_scheme = self._add_colors_to_scheme(
