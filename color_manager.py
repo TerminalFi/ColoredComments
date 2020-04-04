@@ -72,7 +72,6 @@ class ColorManager:
 
                 settings.append(entry)
         color_scheme[scheme_rule_key] = settings
-
         return updates_made, color_scheme
 
     def _create_custom_color_scheme_directory(self):
@@ -171,5 +170,4 @@ class ColorManager:
 def _get_color_property(property, tags):
     if not tags["color"].get(property, False):
         return False
-    return tags["color"][property]
     return tags["color"][property]
