@@ -75,9 +75,7 @@ class ColorManager:
         return updates_made, color_scheme
 
     def _create_custom_color_scheme_directory(self):
-        package_path = sublime.packages_path()
-        path = os.path.join(package_path, self.new_color_scheme_path)
-
+        path = os.path.join(sublime.packages_path(), self.new_color_scheme_path)
         if not os.path.exists(path):
             os.makedirs(path)
         return path
