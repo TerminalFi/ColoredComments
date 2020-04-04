@@ -112,20 +112,12 @@ class ColorManager:
 
         updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
 
-        if self.regenerate:
+        if self.regenerate or updates_made or sublime_cs != new_cs:
             try:
                 os.remove(new_cs_absolute)
             except OSError as ex:
                 self.log.debug(str(ex))
                 pass
-            if is_json:
-                with open(new_cs_absolute, "w") as outfile:
-                    json.dump(color_scheme, outfile, indent=4)
-            else:
-                with open(new_cs_absolute, "wb") as outfile:
-                    outfile.write(plistlib.dumps(color_scheme))
-
-        elif updates_made or sublime_cs != new_cs:
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
                     json.dump(color_scheme, outfile, indent=4)
@@ -146,10 +138,11 @@ class ColorManager:
                 self.update_preferences = False
 
     def load_color_scheme(self, scheme):
+        updates_made = str()
+        color_scheme = str()
         scheme_content = b""
-        is_json = False
+        is_json = bool()
         try:
-
             if scheme in sublime_default_cs:
                 scheme = "{}{}".format("Packages/Color Scheme - Default/", scheme)
             scheme_content = sublime.load_binary_resource(scheme)
@@ -162,14 +155,12 @@ class ColorManager:
             )
             self.log.debug(str(ex))
             raise
-        updates_made = color_scheme = ""
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
             updates_made, color_scheme = self._add_colors_to_scheme(
                 sublime.decode_value(scheme_content.decode("utf-8")), is_json
             )
         elif scheme.endswith(".tmTheme"):
-            is_json = False
             updates_made, color_scheme = self._add_colors_to_scheme(
                 plistlib.loads(bytes(scheme_content)), is_json
             )
