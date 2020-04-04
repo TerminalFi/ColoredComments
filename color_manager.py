@@ -45,13 +45,13 @@ class ColorManager:
             if not curr_tag.get("color", False):
                 continue
 
-            color_name = _get_color_property("name", curr_tag)
-            color_background = _get_color_property("background", curr_tag)
-            color_foreground = _get_color_property("foreground", curr_tag)
-            if False in [color_background, color_foreground, color_foreground]:
+            name = _get_color_property("name", curr_tag)
+            background = _get_color_property("background", curr_tag)
+            foreground = _get_color_property("foreground", curr_tag)
+            if False in [name, background, foreground]:
                 continue
 
-            scope = "{}{}".format(scope_name, color_name.lower().replace(" ", "."))
+            scope = "{}{}".format(scope_name, name.lower().replace(" ", "."))
 
             for setting in settings:
                 if "scope" in setting and setting["scope"] == scope:
@@ -60,15 +60,15 @@ class ColorManager:
             if not scope_exist:
                 updates_made = True
                 entry = dict()
-                entry["name"] = "[Colored Comments] {}".format(color_name.title())
+                entry["name"] = "[Colored Comments] {}".format(name.title())
                 entry["scope"] = scope
                 if is_json:
-                    entry["foreground"] = color_foreground
-                    entry["background"] = color_background
+                    entry["foreground"] = foreground
+                    entry["background"] = background
                 else:
                     entry["settings"] = dict()
-                    entry["settings"]["foreground"] = color_foreground
-                    entry["settings"]["background"] = color_background
+                    entry["settings"]["foreground"] = foreground
+                    entry["settings"]["background"] = background
 
                 settings.append(entry)
         color_scheme[scheme_rule_key] = settings
@@ -171,4 +171,5 @@ class ColorManager:
 def _get_color_property(property, tags):
     if not tags["color"].get(property, False):
         return False
+    return tags["color"][property]
     return tags["color"][property]
