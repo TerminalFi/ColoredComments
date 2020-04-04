@@ -55,7 +55,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             return
 
         if self.settings.get("prompt_new_color_scheme", False):
-            if color_scheme_manager.update_preferences:
+            if color_scheme_manager.get_update_pref():
+                color_scheme_manager.view = self.view
                 color_scheme_manager.create_user_custom_theme()
 
         self.ClearDecorations()
@@ -129,6 +130,8 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
         global color_scheme_manager
         color_scheme_manager.update_preferences = True
         color_scheme_manager.regenerate = True
+        color_scheme_manager.awaiting_feedback = False
+        color_scheme_manager.view = self.view
         color_scheme_manager.create_user_custom_theme()
 
 
@@ -245,6 +248,7 @@ def plugin_loaded():
     color_scheme_manager = ColorManager(
         new_color_scheme_path=scheme_path,
         tags=tag_map,
+        view=None,
         settings=settings,
         regenerate=False,
         log=log,
