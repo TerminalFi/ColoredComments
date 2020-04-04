@@ -35,25 +35,27 @@ class ColorManager:
         self.update_preferences = True
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
-        settings = color_scheme["rules"] if is_json else color_scheme["settings"]
+        scheme_rule_key = "rules" if is_json else "settings"
+        settings = color_scheme[scheme_rule_key]
         scope_exist = bool()
         updates_made = bool()
 
         for tag in self.tags:
             curr_tag = self.tags[tag]
-            if "color" not in curr_tag.keys():
+            if not curr_tag.get("color", False):
                 continue
 
-            color_name = _get_color_property("name", curr_tag).lower()
+            color_name = _get_color_property("name", curr_tag)
             color_background = _get_color_property("background", curr_tag)
             color_foreground = _get_color_property("foreground", curr_tag)
+            if False in [color_background, color_foreground, color_foreground]:
+                continue
 
-            scope = "{}{}".format(scope_name, color_name.replace(" ", "."))
+            scope = "{}{}".format(scope_name, color_name.lower().replace(" ", "."))
 
             for setting in settings:
                 if "scope" in setting and setting["scope"] == scope:
                     scope_exist = True
-                    break
 
             if not scope_exist:
                 updates_made = True
@@ -69,10 +71,7 @@ class ColorManager:
                     entry["settings"]["background"] = color_background
 
                 settings.append(entry)
-        if is_json:
-            color_scheme["rules"] = settings
-        else:
-            color_scheme["settings"] = settings
+        color_scheme[scheme_rule_key] = settings
 
         return updates_made, color_scheme
 
@@ -85,14 +84,13 @@ class ColorManager:
         return path
 
     def create_user_custom_theme(self):
-        if len(self.tags) == 0:
+        if not self.tags:
             return
 
         sublime_preferences = sublime.load_settings(sublime_settings)
         sublime_cs = sublime_preferences.get("color_scheme")
-        if self.regenerate:
-            if self.settings.get("old_color_scheme", "") != "":
-                sublime_cs = self.settings.get("old_color_scheme", "")
+        if self.regenerate and self.settings.get("old_color_scheme", "") != "":
+            sublime_cs = self.settings.get("old_color_scheme", "")
 
         self.settings.set("old_color_scheme", sublime_cs)
         sublime.save_settings("colored_comments.sublime-settings")
@@ -104,7 +102,6 @@ class ColorManager:
             new_cs_base = cs_base
 
         custom_color_base = self._create_custom_color_scheme_directory()
-
         new_cs_absolute = os.path.join(custom_color_base, new_cs_base)
         new_cs = "{}{}{}{}".format(
             "Packages/", self.new_color_scheme_path, "/", new_cs_base
@@ -133,14 +130,9 @@ class ColorManager:
                 sublime.save_settings("Preferences.sublime-settings")
                 self.settings.set("prompt_new_color_scheme", False)
                 sublime.save_settings("colored_comments.sublime-settings")
-                self.update_preferences = False
-            else:
-                self.update_preferences = False
+            self.update_preferences = False
 
     def load_color_scheme(self, scheme):
-        updates_made = str()
-        color_scheme = str()
-        scheme_content = b""
         is_json = bool()
         try:
             if scheme in sublime_default_cs:
@@ -148,12 +140,19 @@ class ColorManager:
             scheme_content = sublime.load_binary_resource(scheme)
         except Exception as ex:
             sublime.error_message(
-                """
-                An error occured while reading color "
-                scheme file. Please check the console 
-                for details."""
+                " ".join(
+                    [
+                        "An error occured while reading color",
+                        "scheme file. Please check the console",
+                        "for details.",
+                    ]
+                )
             )
-            self.log.debug(str(ex))
+            self.log.debug(
+                "[Colored Comments]: {} - {}".format(
+                    self.load_color_scheme.__name__, ex
+                )
+            )
             raise
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
@@ -170,10 +169,6 @@ class ColorManager:
 
 
 def _get_color_property(property, tags):
-    if not tags.get("color", False):
-        return "colored_comments_default"
-
     if not tags["color"].get(property, False):
-        return "colored_comments_default"
-
+        return False
     return tags["color"][property]

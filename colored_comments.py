@@ -154,7 +154,7 @@ def escape_regex(pattern):
     return pattern
 
 
-def generate_identifier_expression(tags):
+def _generate_identifier_expression(tags):
     unordered_tags = dict()
     identifiers = OrderedDict()
     for key, value in tags.items():
@@ -167,7 +167,7 @@ def generate_identifier_expression(tags):
             except ValueError as ex:
                 log.debug(
                     "[Colored Comments]: {} - {}".format(
-                        generate_identifier_expression.__name__, ex
+                        _generate_identifier_expression.__name__, ex
                     )
                 )
         unordered_tags.setdefault(priority, list()).append(
@@ -193,7 +193,7 @@ def _generate_region_keys(region_keys, tag_map):
 
 
 def _get_icon():
-    icon = None
+    icon = str()
     if settings.get("comment_icon_enabled", False):
         icon = settings.get("comment_icon", "dots")
         try:
@@ -229,7 +229,7 @@ def plugin_loaded():
     load_settings()
     setup_logging()
 
-    tag_regex = generate_identifier_expression(tag_map)
+    tag_regex = _generate_identifier_expression(tag_map)
     _generate_region_keys(region_keys, tag_map)
     icon = _get_icon()
 
