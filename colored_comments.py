@@ -40,9 +40,6 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
     def on_modified_async(self, view):
         view.run_command("colored_comments")
 
-    def is_applicable(self):
-        return self.view.match_selector(0, "text.plain")
-
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
