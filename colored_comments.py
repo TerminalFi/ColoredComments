@@ -40,6 +40,9 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
     def on_modified_async(self, view):
         view.run_command("colored_comments")
 
+    def is_applicable(self):
+        return self.view.match_selector(0, "text.plain")
+
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
@@ -49,9 +52,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         self.region_keys = region_keys
         self.tag_regex = tag_regex
         self.regions = self.view.find_by_selector(comment_selector)
-
-        if self.view.match_selector(0, "text.plain"):
-            return
 
         if self.settings.get("prompt_new_color_scheme", False):
             if color_scheme_manager.get_update_pref():
