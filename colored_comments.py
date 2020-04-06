@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 from collections import OrderedDict
-from os import path
 
 import regex
 
@@ -140,7 +139,8 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
 
         preferences = sublime.load_settings("Preferences.sublime-settings")
         old_color_scheme = settings.get("old_color_scheme", "")
-        if old_color_scheme == "" or not path.exists(old_color_scheme):
+        print(old_color_scheme)
+        if not old_color_scheme:
             preferences.erase("color_scheme")
         else:
             preferences.set("color_scheme", old_color_scheme)

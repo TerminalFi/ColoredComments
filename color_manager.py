@@ -9,40 +9,11 @@ from .lib import plistlib
 
 sublime_settings = "Preferences.sublime-settings"
 scope_name = "colored.comments.color."
-MSG = Template(
-    """
-<style>
-html, body {margin:0; padding:0;}
-#scheme-modifier {
-  width: 800px;
-  background-color: color(var(--background) blend(var(--foreground) 80%));
-  color: white;
-  line-height: 1.5;
-  padding-bottom: 0.25rem;
-}
-h2 {
-    background-color: color(var(--background) blend(var(--foreground) 75%));
-    padding: 0;
-}
-.scheme_name {
-  color: yellow;
-}
-#scheme-modifier a {
-  padding: 0.25rem;
-  margin: 0.25rem;
-  font-size: 1.25rem;
-  color: color((--foreground));
-  text-decoration: None;
-}
-</style>
-<div id="scheme-modifier">
-<H2>Colored Comments</h2>
-  <h3>Would you like to change your color scheme to <span class="scheme_name">'$scheme'</span>?</h3>
-  <div id="question">To permanently disable this prompt, set 'prompt_new_color_scheme' to false in the Colored Comments settings<div>
-<br><a href="save">Save</a> <a href="cancel">Cancel</a>
-</div>
-"""
-)
+MSG = """
+Would you like to change your color scheme to '$scheme'?
+To permanently disable this prompt, set 'prompt_new_color_scheme' 
+to false in the Colored Comments settings."""
+
 sublime_default_cs = [
     "Mariana.sublime-color-scheme",
     "Celeste.sublime-color-scheme",
@@ -98,7 +69,7 @@ class ColorManager:
                     scope_exist = True
 
             if not scope_exist:
-                updates_made = True
+                updates = True
                 entry = dict()
                 entry["name"] = "[Colored Comments] {}".format(name.title())
                 entry["scope"] = scope
@@ -112,7 +83,7 @@ class ColorManager:
 
                 settings.append(entry)
         color_scheme[scheme_rule_key] = settings
-        return updates_made, color_scheme
+        return updates, color_scheme
 
     def _create_custom_color_scheme_directory(self):
         path = os.path.join(sublime.packages_path(), self.new_color_scheme_path)
@@ -129,28 +100,27 @@ class ColorManager:
             return
 
         self.sublime_pref = sublime.load_settings(sublime_settings)
-        sublime_cs = self.sublime_pref.get("color_scheme")
+        color_scheme = self.sublime_pref.get("color_scheme")
         if self.regenerate and self.settings.get("old_color_scheme", "") != "":
-            sublime_cs = self.settings.get("old_color_scheme", "")
+            color_scheme = self.settings.get("old_color_scheme", "")
 
-        self.settings.set("old_color_scheme", sublime_cs)
+        self.settings.set("old_color_scheme", color_scheme)
         sublime.save_settings("colored_comments.sublime-settings")
-        cs_base = os.path.basename(sublime_cs)
+        cs_base = os.path.basename(color_scheme)
 
         if cs_base[0:16] != "Colored Comments":
-            new_cs_base = "{}{}".format("Colored Comments-", cs_base)
-        else:
-            new_cs_base = cs_base
+            cs_base = "{}{}".format("Colored Comments-", cs_base)
 
         custom_color_base = self._create_custom_color_scheme_directory()
-        new_cs_absolute = os.path.join(custom_color_base, new_cs_base)
-        self.new_cs = "{}{}{}{}".format(
-            "Packages/", self.new_color_scheme_path, "/", new_cs_base
+        new_cs_absolute = os.path.join(custom_color_base, cs_base)
+        self.color_scheme = "{}{}{}{}".format(
+            "Packages/", self.new_color_scheme_path, "/", cs_base
         )
+        print(self.color_scheme)
 
-        updates_made, color_scheme, is_json = self.load_color_scheme(sublime_cs)
+        updates, loaded_scheme, is_json = self.load_color_scheme(color_scheme)
 
-        if self.regenerate or updates_made or sublime_cs != self.new_cs:
+        if self.regenerate or updates or color_scheme != self.color_scheme:
             try:
                 os.remove(new_cs_absolute)
             except OSError as ex:
@@ -158,33 +128,19 @@ class ColorManager:
                 pass
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
-                    json.dump(color_scheme, outfile, indent=4)
+                    json.dump(loaded_scheme, outfile, indent=4)
             else:
                 with open(new_cs_absolute, "wb") as outfile:
-                    outfile.write(plistlib.dumps(color_scheme))
+                    outfile.write(plistlib.dumps(loaded_scheme))
 
-        if sublime_cs != self.new_cs:
-            self.view.show_popup(
-                MSG.substitute(scheme=self.new_cs),
-                location=-1,
-                max_width=800,
-                max_height=800,
-                on_navigate=self.on_navigate,
-            )
-
-    def on_navigate(self, href):
-        if not self.update_preferences:
-            return
-
-        if href.startswith("save"):
-            self.sublime_pref.set("color_scheme", self.new_cs)
-            sublime.save_settings("Preferences.sublime-settings")
-            self.settings.set("prompt_new_color_scheme", False)
-            sublime.save_settings("colored_comments.sublime-settings")
-
-        sublime.active_window().active_view().hide_popup()
-        self.update_preferences = False
-        self.awaiting_feedback = False
+        if color_scheme != self.color_scheme:
+            if sublime.ok_cancel_dialog(MSG, "Confirm"):
+                self.sublime_pref.set("color_scheme", self.color_scheme)
+                sublime.save_settings("Preferences.sublime-settings")
+                self.settings.set("prompt_new_color_scheme", False)
+                sublime.save_settings("colored_comments.sublime-settings")
+            self.update_preferences = False
+            self.awaiting_feedback = False
 
     def load_color_scheme(self, scheme):
         is_json = bool()
@@ -210,16 +166,16 @@ class ColorManager:
             raise
         if scheme.endswith(".sublime-color-scheme"):
             is_json = True
-            updates_made, color_scheme = self._add_colors_to_scheme(
+            updates, color_scheme = self._add_colors_to_scheme(
                 sublime.decode_value(scheme_content.decode("utf-8")), is_json
             )
         elif scheme.endswith(".tmTheme"):
-            updates_made, color_scheme = self._add_colors_to_scheme(
+            updates, color_scheme = self._add_colors_to_scheme(
                 plistlib.loads(bytes(scheme_content)), is_json
             )
         else:
             sys.exit(1)
-        return updates_made, color_scheme, is_json
+        return updates, color_scheme, is_json
 
 
 def _get_color_property(property, tags):
