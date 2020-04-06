@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 from collections import OrderedDict
-from os import path
 
 import regex
 
@@ -55,7 +54,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             return
 
         if self.settings.get("prompt_new_color_scheme", False):
-            if color_scheme_manager.update_preferences:
+            if color_scheme_manager.get_update_pref():
+                color_scheme_manager.view = self.view
                 color_scheme_manager.create_user_custom_theme()
 
         self.ClearDecorations()
@@ -70,7 +70,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                # ~ Strip the first space from the comment
                 line = self.view.substr(reg)[1:]
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(
@@ -129,6 +128,8 @@ class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
         global color_scheme_manager
         color_scheme_manager.update_preferences = True
         color_scheme_manager.regenerate = True
+        color_scheme_manager.awaiting_feedback = False
+        color_scheme_manager.view = self.view
         color_scheme_manager.create_user_custom_theme()
 
 
@@ -138,7 +139,8 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
 
         preferences = sublime.load_settings("Preferences.sublime-settings")
         old_color_scheme = settings.get("old_color_scheme", "")
-        if old_color_scheme == "" or not path.exists(old_color_scheme):
+        print(old_color_scheme)
+        if not old_color_scheme:
             preferences.erase("color_scheme")
         else:
             preferences.set("color_scheme", old_color_scheme)
@@ -154,7 +156,7 @@ def escape_regex(pattern):
     return pattern
 
 
-def generate_identifier_expression(tags):
+def _generate_identifier_expression(tags):
     unordered_tags = dict()
     identifiers = OrderedDict()
     for key, value in tags.items():
@@ -167,7 +169,7 @@ def generate_identifier_expression(tags):
             except ValueError as ex:
                 log.debug(
                     "[Colored Comments]: {} - {}".format(
-                        generate_identifier_expression.__name__, ex
+                        _generate_identifier_expression.__name__, ex
                     )
                 )
         unordered_tags.setdefault(priority, list()).append(
@@ -182,7 +184,10 @@ def generate_identifier_expression(tags):
                 else escape_regex(tag["settings"]["identifier"])
             )
             tag_identifier.append(")[ \t]+(?:.*)")
-            identifiers[tag["name"]] = regex.compile("".join(tag_identifier))
+            flag = regex.I if tag["settings"].get("ignorecase", False) else 0
+            identifiers[tag["name"]] = regex.compile(
+                "".join(tag_identifier), flags=flag
+            )
     return identifiers
 
 
@@ -193,14 +198,14 @@ def _generate_region_keys(region_keys, tag_map):
 
 
 def _get_icon():
-    icon = None
+    icon = str()
     if settings.get("comment_icon_enabled", False):
         icon = settings.get("comment_icon", "dots")
         try:
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
         except OSError as ex:
-            log.debug("{}".format(ex))
+            log.debug("[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
             icon = str()
             pass
     return icon
@@ -229,7 +234,7 @@ def plugin_loaded():
     load_settings()
     setup_logging()
 
-    tag_regex = generate_identifier_expression(tag_map)
+    tag_regex = _generate_identifier_expression(tag_map)
     _generate_region_keys(region_keys, tag_map)
     icon = _get_icon()
 
@@ -245,6 +250,7 @@ def plugin_loaded():
     color_scheme_manager = ColorManager(
         new_color_scheme_path=scheme_path,
         tags=tag_map,
+        view=None,
         settings=settings,
         regenerate=False,
         log=log,

@@ -1,7 +1,8 @@
 {
     // Enable debug logging
     "debug": false,
-
+    // Color Scheme used prior to Colored Comments modification
+    "old_color_scheme": "",
     // Determines if you should be prompted for setting
     // the color scheme on load of the plugin
     "prompt_new_color_scheme": true,
@@ -43,6 +44,11 @@
             // This disables coloring of text
             // and allows for the outline of the text
             "outline": false,
+            // Treats the identifier
+            // as an regular expression
+            "is_regex": false,
+            // Enables ignorecase for the ideentifier
+            "ignorecase": true,
             // Colors used for Scope generation
             "color":
             {
@@ -85,7 +91,8 @@
                 "name": "todo"
             },
             "identifier": "TODO[:]?|todo[:]?",
-            "is_regex": true
+            "is_regex": true,
+            "ignorecase": true,
         },
         "FIXME":
         {
