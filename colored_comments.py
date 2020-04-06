@@ -71,7 +71,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                # ~ Strip the first space from the comment
                 line = self.view.substr(reg)[1:]
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(
@@ -185,7 +184,10 @@ def _generate_identifier_expression(tags):
                 else escape_regex(tag["settings"]["identifier"])
             )
             tag_identifier.append(")[ \t]+(?:.*)")
-            identifiers[tag["name"]] = regex.compile("".join(tag_identifier))
+            flag = regex.I if tag["settings"].get("ignorecase", False) else 0
+            identifiers[tag["name"]] = regex.compile(
+                "".join(tag_identifier), flags=flag
+            )
     return identifiers
 
 

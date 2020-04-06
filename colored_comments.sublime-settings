@@ -43,6 +43,11 @@
             // This disables coloring of text
             // and allows for the outline of the text
             "outline": false,
+            // Treats the identifier
+            // as an regular expression
+            "is_regex": false,
+            // Enables ignorecase for the ideentifier
+            "ignorecase": true,
             // Colors used for Scope generation
             "color":
             {
@@ -85,7 +90,8 @@
                 "name": "todo"
             },
             "identifier": "TODO[:]?|todo[:]?",
-            "is_regex": true
+            "is_regex": true,
+            "ignorecase": true,
         },
         "FIXME":
         {
