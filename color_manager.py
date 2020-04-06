@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-from string import Template
 
 import sublime
 
@@ -32,7 +31,7 @@ class ColorManager:
         self.settings = settings
         self.regenerate = regenerate
         self.log = log
-        self.new_cs = str()
+        self.color_scheme = str()
         self.update_preferences = True
         self.awaiting_feedback = False
 
@@ -49,7 +48,7 @@ class ColorManager:
         scheme_rule_key = "rules" if is_json else "settings"
         settings = color_scheme[scheme_rule_key]
         scope_exist = bool()
-        updates_made = bool()
+        updates = bool()
 
         for tag in self.tags:
             curr_tag = self.tags[tag]
