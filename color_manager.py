@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from string import Template
 
 import sublime
 
@@ -8,10 +9,12 @@ from .lib import plistlib
 
 sublime_settings = "Preferences.sublime-settings"
 scope_name = "colored.comments.color."
-MSG = """
+MSG = Template(
+    """
 Would you like to change your color scheme to '$scheme'?
 To permanently disable this prompt, set 'prompt_new_color_scheme' 
 to false in the Colored Comments settings."""
+)
 
 sublime_default_cs = [
     "Mariana.sublime-color-scheme",
@@ -133,7 +136,9 @@ class ColorManager:
                     outfile.write(plistlib.dumps(loaded_scheme))
 
         if color_scheme != self.color_scheme:
-            if sublime.ok_cancel_dialog(MSG, "Confirm"):
+            if sublime.ok_cancel_dialog(
+                MSG.substitute(scheme=self.color_scheme), "Confirm"
+            ):
                 self.sublime_pref.set("color_scheme", self.color_scheme)
                 sublime.save_settings("Preferences.sublime-settings")
                 self.settings.set("prompt_new_color_scheme", False)
