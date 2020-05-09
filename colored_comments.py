@@ -70,7 +70,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                line = self.view.substr(reg)[1:]
+                line = self.view.substr(reg)
+                line = line[1:] if line.startswith(" ") else line
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(
                         self.view.substr(reg).strip()
@@ -205,7 +206,8 @@ def _get_icon():
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
         except OSError as ex:
-            log.debug("[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
+            log.debug(
+                "[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
             icon = str()
             pass
     return icon
@@ -216,7 +218,8 @@ def load_settings():
     settings = sublime.load_settings(settings_path)
     tag_map = settings.get("tags", [])
     continued_matching = settings.get("continued_matching", False)
-    continued_matching_pattern = settings.get("continued_matching_pattern", "-")
+    continued_matching_pattern = settings.get(
+        "continued_matching_pattern", "-")
 
 
 def setup_logging():
