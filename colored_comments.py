@@ -71,7 +71,8 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
                 line = self.view.substr(reg)
-                line = line[1:] if line.startswith(" ") else line
+                if not continued_matching_pattern.startswith(" "):
+                    line = line.strip()
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(
                         self.view.substr(reg).strip()
