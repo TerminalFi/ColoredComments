@@ -64,29 +64,30 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                line = self.view.substr(reg)
-                if not settings.get("continued_matching_pattern", "-").startswith(" "):
-                    line = line.strip()
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex[tag_identifier].search(
                         self.view.substr(reg).strip()
                     )
-                    if not matches:
-                        if (
-                            settings.get("continued_matching", False)
-                            and prev_match
-                            and line
-                            and line.startswith(
-                                settings.get("continued_matching_pattern", "-")
-                            )
-                        ):
-                            to_decorate.setdefault(prev_match, []).append(reg)
-                        else:
-                            prev_match = str()
-                        continue
-                    prev_match = tag_identifier
-                    to_decorate.setdefault(tag_identifier, []).append(reg)
-                    break
+                    if matches:
+                        prev_match = tag_identifier
+                        to_decorate.setdefault(tag_identifier, []).append(reg)
+                        break
+
+                    line = self.view.substr(reg)
+                    if not settings.get("continued_matching_pattern", "-").startswith(" "):
+                        line = line.strip()
+                    if (
+                        settings.get("continued_matching", False) and
+                        prev_match and
+                        line and
+                        line.startswith(
+                            settings.get("continued_matching_pattern", "-")
+                        )
+                    ):
+                        to_decorate.setdefault(prev_match, []).append(reg)
+                    else:
+                        prev_match = str()
+                    continue
 
             for key in to_decorate:
                 if not settings.get("tags", {}).get(key):
