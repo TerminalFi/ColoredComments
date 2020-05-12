@@ -1,9 +1,8 @@
 import logging
 import os
+import re
 import sys
 from collections import OrderedDict
-
-import regex
 
 import sublime
 import sublime_plugin
@@ -93,19 +92,15 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     break
 
             for key in to_decorate:
-                sel_tag = self.tag_map[key]
+                sel_tag = self.tag_map.get(key)
                 flags = self._get_tag_flags(sel_tag)
-                scope_to_use = ""
-                if "scope" in sel_tag.keys():
-                    scope_to_use = sel_tag["scope"]
+                if sel_tag.get("scope"):
+                    scope_to_use = sel_tag.get("scope")
                 else:
-                    scope_to_use = (
-                        "colored.comments.color."
-                        + sel_tag["color"]["name"].replace(" ", ".").lower()
-                    )
+                    scope_to_use = "colored.comments.color.{}".format(sel_tag.get("color").get("name").replace(" ", ".").lower())
                 self.view.add_regions(
                     key=key.lower(),
-                    regions=to_decorate[key],
+                    regions=to_decorate.get(key),
                     scope=scope_to_use,
                     icon=icon,
                     flags=flags,
@@ -152,7 +147,7 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
 
 
 def escape_regex(pattern):
-    pattern = regex.escape(pattern)
+    pattern = re.escape(pattern)
     for character in "'<>`":
         pattern = pattern.replace("\\" + character, character)
     return pattern
@@ -163,7 +158,7 @@ def _generate_identifier_expression(tags):
     identifiers = OrderedDict()
     for key, value in tags.items():
         priority = 2147483647
-        if value.get("priority", False):
+        if value.get("priority"):
             tag_priority = value.get("priority")
             try:
                 tag_priority = int(priority)
@@ -178,16 +173,16 @@ def _generate_identifier_expression(tags):
             {"name": key, "settings": value}
         )
     for key in sorted(unordered_tags):
-        for tag in unordered_tags[key]:
+        for tag in unordered_tags.get(key):
             tag_identifier = ["^("]
             tag_identifier.append(
-                tag["settings"]["identifier"]
-                if tag["settings"].get("is_regex", False)
-                else escape_regex(tag["settings"]["identifier"])
+                tag.get("settings").get("identifier")
+                if tag.get("settings").get("is_regex", False)
+                else escape_regex(tag.get("settings").get("identifier"))
             )
             tag_identifier.append(")[ \t]+(?:.*)")
-            flag = regex.I if tag["settings"].get("ignorecase", False) else 0
-            identifiers[tag["name"]] = regex.compile(
+            flag = re.I if tag.get("settings").get("ignorecase", False) else 0
+            identifiers[tag.get("name")] = re.compile(
                 "".join(tag_identifier), flags=flag
             )
     return identifiers
@@ -254,7 +249,6 @@ def plugin_loaded():
     color_scheme_manager = ColorManager(
         new_color_scheme_path=scheme_path,
         tags=tag_map,
-        view=None,
         settings=settings,
         regenerate=False,
         log=log,

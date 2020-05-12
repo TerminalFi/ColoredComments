@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from string import Template
@@ -12,7 +11,7 @@ scope_name = "colored.comments.color."
 MSG = Template(
     """
 Would you like to change your color scheme to '$scheme'?
-To permanently disable this prompt, set 'prompt_new_color_scheme' 
+To permanently disable this prompt, set 'prompt_new_color_scheme'
 to false in the Colored Comments settings."""
 )
 
@@ -20,15 +19,14 @@ sublime_default_cs = [
     "Mariana.sublime-color-scheme",
     "Celeste.sublime-color-scheme",
     "Monokai.sublime-color-scheme",
-    "Breakers.sublime-color-schem",
+    "Breakers.sublime-color-scheme",
     "Sixteen.sublime-color-scheme",
 ]
 
 
 class ColorManager:
-    def __init__(self, new_color_scheme_path, tags, view, settings, regenerate, log):
+    def __init__(self, new_color_scheme_path, tags, settings, regenerate, log):
         self.new_color_scheme_path = new_color_scheme_path
-        self.view = view
         self.sublime_pref = None
         self.tags = tags
         self.settings = settings
@@ -49,28 +47,18 @@ class ColorManager:
 
     def _add_colors_to_scheme(self, color_scheme, is_json):
         scheme_rule_key = "rules" if is_json else "settings"
-        settings = color_scheme[scheme_rule_key]
-        scope_exist = bool()
+        settings = color_scheme.get(scheme_rule_key)
         updates = bool()
 
         for tag in self.tags:
-            curr_tag = self.tags[tag]
-            if not curr_tag.get("color", False):
-                continue
-
-            name = _get_color_property("name", curr_tag)
-            background = _get_color_property("background", curr_tag)
-            foreground = _get_color_property("foreground", curr_tag)
+            name = _get_color_property("name", self.tags.get(tag))
+            background = _get_color_property("background", self.tags.get(tag))
+            foreground = _get_color_property("foreground", self.tags.get(tag))
             if False in [name, background, foreground]:
                 continue
 
             scope = "{}{}".format(scope_name, name.lower().replace(" ", "."))
-
-            for setting in settings:
-                if "scope" in setting and setting["scope"] == scope:
-                    scope_exist = True
-
-            if not scope_exist:
+            if not any(setting.get("scope") == scope for setting in settings):
                 updates = True
                 entry = dict()
                 entry["name"] = "[Colored Comments] {}".format(name.title())
@@ -103,8 +91,8 @@ class ColorManager:
 
         self.sublime_pref = sublime.load_settings(sublime_settings)
         color_scheme = self.sublime_pref.get("color_scheme")
-        if self.regenerate and self.settings.get("old_color_scheme", "") != "":
-            color_scheme = self.settings.get("old_color_scheme", "")
+        if self.regenerate and self.settings.get("old_color_scheme"):
+            color_scheme = self.settings.get("old_color_scheme")
 
         self.settings.set("old_color_scheme", color_scheme)
         sublime.save_settings("colored_comments.sublime-settings")
@@ -118,7 +106,6 @@ class ColorManager:
         self.color_scheme = "{}{}{}{}".format(
             "Packages/", self.new_color_scheme_path, "/", cs_base
         )
-        print(self.color_scheme)
 
         updates, loaded_scheme, is_json = self.load_color_scheme(color_scheme)
 
@@ -130,7 +117,7 @@ class ColorManager:
                 pass
             if is_json:
                 with open(new_cs_absolute, "w") as outfile:
-                    json.dump(loaded_scheme, outfile, indent=4)
+                    outfile.write(sublime.encode_value(loaded_scheme, True))
             else:
                 with open(new_cs_absolute, "wb") as outfile:
                     outfile.write(plistlib.dumps(loaded_scheme))
@@ -156,7 +143,7 @@ class ColorManager:
             sublime.error_message(
                 " ".join(
                     [
-                        "An error occured while reading color",
+                        "An error occurred while reading color",
                         "scheme file. Please check the console",
                         "for details.",
                     ]
@@ -183,6 +170,6 @@ class ColorManager:
 
 
 def _get_color_property(property, tags):
-    if not tags["color"].get(property, False):
+    if not tags.get("color") or not tags.get("color").get(property):
         return False
-    return tags["color"][property]
+    return tags.get("color").get(property)
