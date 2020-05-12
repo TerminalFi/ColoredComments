@@ -20,7 +20,7 @@ sublime_default_cs = [
     "Mariana.sublime-color-scheme",
     "Celeste.sublime-color-scheme",
     "Monokai.sublime-color-scheme",
-    "Breakers.sublime-color-schem",
+    "Breakers.sublime-color-scheme",
     "Sixteen.sublime-color-scheme",
 ]
 
@@ -118,7 +118,6 @@ class ColorManager:
         self.color_scheme = "{}{}{}{}".format(
             "Packages/", self.new_color_scheme_path, "/", cs_base
         )
-        print(self.color_scheme)
 
         updates, loaded_scheme, is_json = self.load_color_scheme(color_scheme)
 
