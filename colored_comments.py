@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from collections import OrderedDict
 
@@ -8,7 +7,7 @@ import regex
 import sublime
 import sublime_plugin
 
-from .color_manager import ColorManager
+from .plugin.color_manager import ColorManager
 
 NAME = "Colored Comments"
 VERSION = "3.0.0"

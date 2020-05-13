@@ -5,19 +5,15 @@ import sublime
 sublime_settings = "Preferences.sublime-settings"
 override_path = "Colored Comments Override"
 scope_name = "colored.comments.color."
-scheme_content_template = {"rules": [{}], "variables": {}}
 
 
 class ColorManager:
-    def __init__(self, tags, settings, log):
+    def __init__(self, tags, log):
         self.tags = tags
         self.log = log
 
     def remove_override(self, scheme):
-        try:
-            os.remove(_build_scheme_path(os.path.basename(scheme)))
-        except Exception as ex:
-            print(ex)
+        self.save_scheme(os.path.basename(scheme), {"rules": [], "variables": {}})
 
     def create_user_custom_theme(self):
         if not self.tags:
@@ -25,7 +21,7 @@ class ColorManager:
 
         self.sublime_pref = sublime.load_settings(sublime_settings)
         color_scheme = self.sublime_pref.get("color_scheme")
-        scheme_content = self._add_colors_to_scheme(scheme_content_template)
+        scheme_content = self._add_colors_to_scheme({"rules": [], "variables": {}})
         self.save_scheme(os.path.basename(color_scheme), scheme_content)
 
     def save_scheme(self, scheme_name: str, scheme_content: dict) -> None:
