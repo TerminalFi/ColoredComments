@@ -1,0 +1,5 @@
+Version 3.0.0 (May 13, 2020)
+--------------------------
+
+  * Fix the Color Manager from overriding user files
+  * Modify command names
