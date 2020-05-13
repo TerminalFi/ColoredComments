@@ -1,4 +1,16 @@
-Colored Comments
-================================
+Colored Comments is the missing comment helpers that allows you to
+create patterns for comment identification. Which then colors the comments
+the color of your choice.
 
+Quick Start
+-----------
+
+All commands are available in the command palette.
+
+To get started, first run the `Colored Comments: Generate Color Scheme`
+command from the command palette. Once done, comment of your choice will
+begin to be colored.
+
+Removing the comment color scheme, run the following:
+`Colored Comments: Remove Generated Color Scheme`
 
