@@ -11,7 +11,7 @@ import sublime_plugin
 from .color_manager import ColorManager
 
 NAME = "Colored Comments"
-VERSION = "2.3.3"
+VERSION = "3.0.0"
 
 log = logging.Logger
 region_keys = list()
@@ -23,7 +23,6 @@ continued_matching_pattern = str()
 icon = str()
 color_scheme_manager = ColorManager
 
-scheme_path = "User/Colored Comments"
 icon_path = "Packages/Colored Comments/icons"
 settings_path = "colored_comments.sublime-settings"
 comment_selector = "comment - punctuation.definition.comment"
@@ -54,9 +53,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             return
 
         if self.settings.get("prompt_new_color_scheme", False):
-            if color_scheme_manager.get_update_pref():
-                color_scheme_manager.view = self.view
-                color_scheme_manager.create_user_custom_theme()
+            color_scheme_manager.create_user_custom_theme()
 
         self.ClearDecorations()
         self.ApplyDecorations()
@@ -126,27 +123,15 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         global color_scheme_manager
-        color_scheme_manager.update_preferences = True
-        color_scheme_manager.regenerate = True
-        color_scheme_manager.awaiting_feedback = False
-        color_scheme_manager.view = self.view
         color_scheme_manager.create_user_custom_theme()
 
 
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global settings
-
         preferences = sublime.load_settings("Preferences.sublime-settings")
-        old_color_scheme = settings.get("old_color_scheme", "")
-        print(old_color_scheme)
-        if not old_color_scheme:
-            preferences.erase("color_scheme")
-        else:
-            preferences.set("color_scheme", old_color_scheme)
-        sublime.save_settings("Preferences.sublime-settings")
-        settings.erase("old_color_scheme")
-        sublime.save_settings(settings_path)
+        if preferences.get("color_scheme"):
+            color_scheme_manager.remove_override(
+                preferences.get("color_scheme"))
 
 
 def escape_regex(pattern):
@@ -205,7 +190,8 @@ def _get_icon():
             icon = "%s/%s.png" % (icon_path, icon)
             sublime.load_binary_resource(icon)
         except OSError as ex:
-            log.debug("[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
+            log.debug(
+                "[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
             icon = str()
             pass
     return icon
@@ -216,12 +202,13 @@ def load_settings():
     settings = sublime.load_settings(settings_path)
     tag_map = settings.get("tags", [])
     continued_matching = settings.get("continued_matching", False)
-    continued_matching_pattern = settings.get("continued_matching_pattern", "-")
+    continued_matching_pattern = settings.get(
+        "continued_matching_pattern", "-")
 
 
 def setup_logging():
     global log
-    log = logging.getLogger(__name__)
+    log = logging.getLogger("colored_comments")
     out_hdlr = logging.StreamHandler(sys.stdout)
     out_hdlr.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
     out_hdlr.setLevel(logging.DEBUG)
@@ -240,29 +227,7 @@ def plugin_loaded():
 
     if settings.get("debug", False):
         log.setLevel(logging.DEBUG)
-
-    sublime_preferences = sublime.load_settings("Preferences.sublime-settings")
-    sublime_cs = sublime_preferences.get("color_scheme")
-    if os.path.basename(sublime_cs)[0:16] != "Colored Comments":
-        settings.set("old_color_scheme", sublime_cs)
-        sublime.save_settings("colored_comments.sublime-settings")
-
     color_scheme_manager = ColorManager(
-        new_color_scheme_path=scheme_path,
         tags=tag_map,
-        view=None,
-        settings=settings,
-        regenerate=False,
         log=log,
     )
-
-
-def plugin_unloaded():
-    preferences = sublime.load_settings("Preferences.sublime-settings")
-    cc_preferences = sublime.load_settings(settings_path)
-    old_color_scheme = cc_preferences.get("old_color_scheme", "")
-    if old_color_scheme != "":
-        preferences.set("color_scheme", old_color_scheme)
-    else:
-        preferences.erase("color_scheme")
-    sublime.save_settings("Preferences.sublime-settings")
