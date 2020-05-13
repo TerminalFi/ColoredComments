@@ -41,24 +41,19 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global settings, tag_map, tag_regex, region_keys
+        global settings, tag_regex
         self.settings = settings
-        self.tag_map = tag_map
-        self.region_keys = region_keys
         self.tag_regex = tag_regex
         self.regions = self.view.find_by_selector(comment_selector)
 
         if self.view.match_selector(0, "text.plain"):
             return
 
-        if self.settings.get("prompt_new_color_scheme", False):
-            color_scheme_manager.create_user_custom_theme()
-
         self.ClearDecorations()
         self.ApplyDecorations()
 
     def ClearDecorations(self):
-        for region_key in self.region_keys:
+        for region_key in region_keys:
             self.view.erase_regions(region_key)
 
     def ApplyDecorations(self):
@@ -66,10 +61,12 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         prev_match = str()
         for region in self.regions:
             for reg in self.view.split_by_newlines(region):
-                line = self.view.substr(reg)[1:]
+                line = self.view.substr(reg)
+                if not continued_matching_pattern.startswith(" "):
+                    line = line.strip()
                 for tag_identifier in self.tag_regex:
-                    matches = self.tag_regex[tag_identifier].search(
-                        self.view.substr(reg).strip()
+                    matches = self.tag_regex.get(tag_identifier).search(
+                        line.strip()
                     )
                     if not matches:
                         if (
@@ -87,7 +84,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     break
 
             for key in to_decorate:
-                sel_tag = self.tag_map[key]
+                sel_tag = self.settings.get("tags", []).get(key)
                 flags = self._get_tag_flags(sel_tag)
                 scope_to_use = ""
                 if "scope" in sel_tag.keys():
@@ -121,7 +118,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global color_scheme_manager
         color_scheme_manager.create_user_custom_theme()
 
 
@@ -216,7 +212,7 @@ def setup_logging():
 
 def plugin_loaded():
     global tag_regex, tag_map, region_keys
-    global log, icon, color_scheme_manager, settings
+    global log, icon, color_scheme_manager
     load_settings()
     setup_logging()
 

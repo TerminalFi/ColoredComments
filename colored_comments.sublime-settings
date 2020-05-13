@@ -1,10 +1,7 @@
 {
     // Enable debug logging
     "debug": false,
-    // Determines if you should be prompted for setting
-    // the color scheme on load of the plugin
-    "prompt_new_color_scheme": true,
-
+    
     // Enables continued matching of the previous tag
     "continued_matching": true,
 

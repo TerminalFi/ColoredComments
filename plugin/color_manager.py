@@ -63,7 +63,7 @@ def _create_override_path() -> None:
     return os.makedirs(os.path.join(sublime.packages_path(), override_path), exist_ok=True)
 
 
-def _get_color_property(property, tags):
+def _get_color_property(property: str, tags: dict) -> str:
     if not tags.get("color") and tags.get("color").get(property, False):
         return False
     return tags.get("color").get(property)
