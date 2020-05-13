@@ -1,18 +1,18 @@
 [
-{
-    "caption": "Colored Comments: Generate Color Scheme File",
-    "command": "colored_comments_theme_generator"
-},
-{
-    "caption": "Colored Comments: Revert to Original Color Scheme File",
-    "command": "colored_comments_theme_revert"
-},
-{
-    "caption": "Colored Comments: Edit Settings",
-    "command": "edit_settings",
-    "args":
     {
-        "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
-        "default": "{\n\t$0\n}\n",
+        "caption": "Colored Comments: Generate Color Scheme",
+        "command": "colored_comments_theme_generator"
+    },
+    {
+        "caption": "Colored Comments: Remove Generated Color Scheme",
+        "command": "colored_comments_theme_revert"
+    },
+    {
+        "caption": "Colored Comments: Settings",
+        "command": "edit_settings",
+        "args": {
+            "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
+            "default": "{\n\t$0\n}\n"
+        }
     }
-}]
+]
