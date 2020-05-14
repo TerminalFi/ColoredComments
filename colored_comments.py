@@ -11,7 +11,6 @@ VERSION = "3.0.1"
 region_keys = list()
 color_scheme_manager = ColorManager
 
-settings_path = "colored_comments.sublime-settings"
 comment_selector = "comment - punctuation.definition.comment"
 
 
@@ -92,6 +91,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
+        color_scheme_manager.tags = settings.tags
         color_scheme_manager.create_user_custom_theme()
 
 

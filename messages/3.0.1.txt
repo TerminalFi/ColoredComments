@@ -1,0 +1,4 @@
+Version 3.0.1 (May 14, 2020)
+----------------------------
+
+  * Enable hot reload of settings
