@@ -2,15 +2,15 @@ import os
 
 import sublime
 
+
 sublime_settings = "Preferences.sublime-settings"
 override_path = "Colored Comments Override"
 scope_name = "colored.comments.color."
 
 
 class ColorManager:
-    def __init__(self, tags, log):
+    def __init__(self, tags):
         self.tags = tags
-        self.log = log
 
     def remove_override(self, scheme):
         self.save_scheme(os.path.basename(scheme), {"rules": [], "variables": {}})
