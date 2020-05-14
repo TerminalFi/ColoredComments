@@ -6,12 +6,12 @@ import sublime_plugin
 
 from .plugin import logger as log
 from .plugin.color_manager import ColorManager
+from .plugin import settings, load_settings, unload_settings
 
 NAME = "Colored Comments"
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 
 region_keys = list()
-settings = dict()
 tag_regex = OrderedDict()
 icon = str()
 color_scheme_manager = ColorManager
@@ -35,8 +35,7 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        global settings, tag_regex
-        self.settings = settings
+        global tag_regex
         self.tag_regex = tag_regex
 
         if self.view.match_selector(0, "text.plain"):
@@ -55,9 +54,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         for region in self.view.find_by_selector(comment_selector):
             for reg in self.view.split_by_newlines(region):
                 line = self.view.substr(reg)
-                continued_matching_pattern = settings.get(
-                    "continued_matching_pattern", "-")
-                if not continued_matching_pattern.startswith(" "):
+                if not settings.continued_matching_pattern.startswith(" "):
                     line = line.strip()
                 for tag_identifier in self.tag_regex:
                     matches = self.tag_regex.get(tag_identifier).search(
@@ -65,10 +62,10 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     )
                     if not matches:
                         if (
-                            settings.get("continued_matching", False)
+                            settings.continued_matching
                             and prev_match
                             and line
-                            and line.startswith(continued_matching_pattern)
+                            and line.startswith(settings.continued_matching_pattern)
                         ):
                             to_decorate.setdefault(prev_match, []).append(reg)
                         else:
@@ -79,7 +76,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     break
 
             for key in to_decorate:
-                tag = self.settings.get("tags", []).get(key)
+                tag = settings.get("tags", []).get(key)
                 self.view.add_regions(
                     key=key.lower(),
                     regions=to_decorate.get(key),
@@ -170,42 +167,29 @@ def _generate_region_keys(region_keys, tag_map):
             region_keys.append(key.lower())
 
 
-def _get_icon():
-    icon = str()
-    if settings.get("comment_icon_enabled", False):
-        icon = settings.get("comment_icon", "dots")
-        try:
-            icon = "%s/%s.png" % (icon_path, icon)
-            sublime.load_binary_resource(icon)
-        except OSError as ex:
-            log.debug(
-                "[Colored Comments]: {} - {}".format(_get_icon.__name__, ex))
-            icon = str()
-            pass
-    return icon
-
-
-def load_settings():
-    global settings, continued_matching, continued_matching_pattern
-    settings = sublime.load_settings(settings_path)
-    continued_matching = settings.get("continued_matching", False)
-    continued_matching_pattern = settings.get(
-        "continued_matching_pattern", "-")
+# def load_settings():
+#     global settings, continued_matching, continued_matching_pattern
+#     settings = sublime.load_settings(settings_path)
+#     continued_matching = settings.get("continued_matching", False)
+#     continued_matching_pattern = settings.get(
+#         "continued_matching_pattern", "-")
 
 
 def plugin_loaded():
-    global tag_regex, region_keys, log
-    global log, icon, color_scheme_manager
+    global settings, tag_regex, region_keys
+    global icon, color_scheme_manager
     load_settings()
 
-    tag_regex = _generate_identifier_expression(settings.get("tags", []))
-    _generate_region_keys(region_keys, settings.get("tags", []))
-    icon = _get_icon()
+    tag_regex = _generate_identifier_expression(settings.tags)
+    _generate_region_keys(region_keys, settings.tags)
+    icon = settings.icon
 
-    if settings.get("debug", False):
-        log.set_debug_logging(True)
+    log.set_debug_logging(settings.debug)
 
     color_scheme_manager = ColorManager(
-        tags=settings.get("tags", []),
-        log=log,
+        tags=settings.tags
     )
+
+
+def plugin_unloaded():
+    unload_settings()
