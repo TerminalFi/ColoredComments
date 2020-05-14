@@ -4,9 +4,10 @@ from collections import OrderedDict
 import sublime
 import sublime_plugin
 
+from .plugin import load_settings
 from .plugin import logger as log
+from .plugin import settings, unload_settings
 from .plugin.color_manager import ColorManager
-from .plugin import settings, load_settings, unload_settings
 
 NAME = "Colored Comments"
 VERSION = "3.0.1"
@@ -115,7 +116,8 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
 def _get_scope_for_region(tag: dict) -> str:
     if tag.get("scope"):
         return tag.get("scope")
-    scope_name = "colored.comments.color.{}".format(tag.get("color").get("name"))
+    scope_name = "colored.comments.color.{}".format(
+        tag.get("color").get("name"))
     return scope_name.replace(" ", ".").lower()
 
 
