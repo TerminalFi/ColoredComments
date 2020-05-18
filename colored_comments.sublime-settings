@@ -15,6 +15,12 @@
     // Valid options: comment, dots
     "comment_icon": "dots",
 
+    // Ignored Syntax List
+    "disabled_syntax": [
+        "Packages/Text/Plain text.tmLanguage",
+        "Packages/Markdown/MultiMarkdown.sublime-syntax",
+        "Packages/Markdown/Markdown.sublime-syntax"
+    ],
     // This is the list of tags/identifiers you want to highlight
     // in your code.
     "tags":

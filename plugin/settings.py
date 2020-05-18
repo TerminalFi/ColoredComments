@@ -6,64 +6,64 @@ import sublime
 from . import logger as log
 
 default_tags = {
-    'Important': {
-        'identifier': '!',
-        'underline': False,
-        'stippled_underline': False,
-        'squiggly_underline': False,
-        'outline': False,
-        'is_regex': False,
-        'ignorecase': True,
-        'color': {
-            'name': 'important',
-            'foreground': '#FF2D00',
-            'background': 'rgba(1,22,38, 0.1)'
+    "Important": {
+        "identifier": "!",
+        "underline": False,
+        "stippled_underline": False,
+        "squiggly_underline": False,
+        "outline": False,
+        "is_regex": False,
+        "ignorecase": True,
+        "color": {
+            "name": "important",
+            "foreground": "#FF2D00",
+            "background": "rgba(1,22,38, 0.1)",
         },
     },
-    'Deprecated': {
-        'identifier': '*',
-        'color': {
-            'name': 'deprecated',
-            'foreground': '#98C379',
-            'background': 'rgba(1,22,38, 0.1)'
+    "Deprecated": {
+        "identifier": "*",
+        "color": {
+            "name": "deprecated",
+            "foreground": "#98C379",
+            "background": "rgba(1,22,38, 0.1)",
         },
     },
-    'Question': {
-        'identifier': '?',
-        'color': {
-            'name': 'question',
-            'foreground': '#3498DB',
-            'background': 'rgba(1,22,38, 0.1)'
+    "Question": {
+        "identifier": "?",
+        "color": {
+            "name": "question",
+            "foreground": "#3498DB",
+            "background": "rgba(1,22,38, 0.1)",
         },
     },
-    'TODO': {
-        'color': {
-            'background': 'rgba(1,22,38, 0.1)',
-            'foreground': '#FF8C00',
-            'name': 'todo'
+    "TODO": {
+        "color": {
+            "background": "rgba(1,22,38, 0.1)",
+            "foreground": "#FF8C00",
+            "name": "todo",
         },
-        'identifier': 'TODO[:]?|todo[:]?',
-        'is_regex': True,
-        'ignorecase': True,
+        "identifier": "TODO[:]?|todo[:]?",
+        "is_regex": True,
+        "ignorecase": True,
     },
-    'FIXME': {
-        'color': {
-            'background': 'rgba(1,22,38, 0.1)',
-            'foreground': '#9933FF',
-            'name': 'fixme'
+    "FIXME": {
+        "color": {
+            "background": "rgba(1,22,38, 0.1)",
+            "foreground": "#9933FF",
+            "name": "fixme",
         },
-        'identifier': 'FIXME[:]?|fixme[:]?',
-        'is_regex': True
+        "identifier": "FIXME[:]?|fixme[:]?",
+        "is_regex": True,
     },
-    'UNDEFINED': {
-        'color': {
-            'background': 'rgba(1,22,38, 0.1)',
-            'foreground': '#474747',
-            'name': 'undefined'
+    "UNDEFINED": {
+        "color": {
+            "background": "rgba(1,22,38, 0.1)",
+            "foreground": "#474747",
+            "name": "undefined",
         },
-        'identifier': '//[:]?',
-        'is_regex': True
-    }
+        "identifier": "//[:]?",
+        "is_regex": True,
+    },
 }
 
 
@@ -74,6 +74,7 @@ class Settings(object):
         self.continued_matching_pattern = "-"
         self.comment_icon_enabled = True
         self.comment_icon = "dots"
+        self.disabled_syntax = list()
         self.tags = dict()
         self.tag_regex = OrderedDict()
 
@@ -87,8 +88,9 @@ def load_settings() -> None:
     settings_obj = sublime.load_settings("colored_comments.sublime-settings")
     _settings_obj = settings_obj
     update_settings(settings, settings_obj)
-    settings_obj.add_on_change("_on_updated_settings",
-                               lambda: update_settings(settings, settings_obj))
+    settings_obj.add_on_change(
+        "_on_updated_settings", lambda: update_settings(settings, settings_obj)
+    )
 
 
 def unload_settings() -> None:
@@ -96,8 +98,9 @@ def unload_settings() -> None:
         _settings_obj.clear_on_change("_on_updated_settings")
 
 
-def get_boolean_setting(settings_obj: sublime.Settings, key: str,
-                        default: bool) -> bool:
+def get_boolean_setting(
+    settings_obj: sublime.Settings, key: str, default: bool
+) -> bool:
     val = settings_obj.get(key)
     if isinstance(val, bool):
         return val
@@ -105,8 +108,9 @@ def get_boolean_setting(settings_obj: sublime.Settings, key: str,
         return default
 
 
-def get_dictionary_setting(settings_obj: sublime.Settings, key: str,
-                           default: dict) -> dict:
+def get_dictionary_setting(
+    settings_obj: sublime.Settings, key: str, default: dict
+) -> dict:
     val = settings_obj.get(key)
     if isinstance(val, dict):
         return val
@@ -114,8 +118,15 @@ def get_dictionary_setting(settings_obj: sublime.Settings, key: str,
         return default
 
 
-def get_str_setting(settings_obj: sublime.Settings, key: str,
-                    default: str) -> str:
+def get_list_setting(settings_obj: sublime.Settings, key: str, default: list) -> list:
+    val = settings_obj.get(key)
+    if isinstance(val, list):
+        return val
+    else:
+        return default
+
+
+def get_str_setting(settings_obj: sublime.Settings, key: str, default: str) -> str:
     val = settings_obj.get(key)
     if isinstance(val, str):
         return val
@@ -123,8 +134,7 @@ def get_str_setting(settings_obj: sublime.Settings, key: str,
         return default
 
 
-def get_dict_setting(settings_obj: sublime.Settings, key: str,
-                     default: dict) -> dict:
+def get_dict_setting(settings_obj: sublime.Settings, key: str, default: dict) -> dict:
     val = settings_obj.get(key)
     if isinstance(val, dict):
         return val
@@ -132,17 +142,23 @@ def get_dict_setting(settings_obj: sublime.Settings, key: str,
         return default
 
 
-def update_settings(settings: Settings,
-                    settings_obj: sublime.Settings) -> None:
+def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
     settings.debug = get_boolean_setting(settings_obj, "debug", True)
     settings.continued_matching = get_boolean_setting(
-        settings_obj, "continued_matching", True)
+        settings_obj, "continued_matching", True
+    )
     settings.continued_matching_pattern = get_str_setting(
-        settings_obj, "continued_matching_pattern", "-")
+        settings_obj, "continued_matching_pattern", "-"
+    )
     settings.comment_icon_enabled = get_boolean_setting(
-        settings_obj, "comment_icon_enabled", True)
+        settings_obj, "comment_icon_enabled", True
+    )
     settings.comment_icon = "Packages/Colored Comments/icons/{}.png".format(
-        get_str_setting(settings_obj, "comment_icon", "dots"))
+        get_str_setting(settings_obj, "comment_icon", "dots")
+    )
+    settings.disabled_syntax = get_list_setting(
+        settings_obj, "disabled_syntax", ["Packages/Text/Plain text.tmLanguage"]
+    )
     settings.tags = get_dict_setting(settings_obj, "tags", default_tags)
     settings.tag_regex = _generate_identifier_expression(settings.tags)
 
@@ -183,7 +199,5 @@ def _generate_identifier_expression(tags):
             )
             tag_identifier.append(")[ \t]+(?:.*)")
             flag = re.I if tag["settings"].get("ignorecase", False) else 0
-            identifiers[tag["name"]] = re.compile(
-                "".join(tag_identifier), flags=flag
-            )
+            identifiers[tag["name"]] = re.compile("".join(tag_identifier), flags=flag)
     return identifiers

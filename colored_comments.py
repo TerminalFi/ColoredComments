@@ -28,7 +28,7 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        if self.view.match_selector(0, "text.plain"):
+        if self.view.settings().get("syntax") in settings.disabled_syntax:
             return
 
         self.ClearDecorations()
@@ -72,10 +72,10 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     regions=to_decorate.get(key),
                     scope=_get_scope_for_region(tag),
                     icon=settings.comment_icon if settings.comment_icon_enabled else "",
-                    flags=self._get_tag_flags(tag),
+                    flags=self._get_flags(tag),
                 )
 
-    def _get_tag_flags(self, tag):
+    def _get_flags(self, tag):
         options = {
             "outline": sublime.DRAW_NO_FILL,
             "underline": sublime.DRAW_SOLID_UNDERLINE,
@@ -84,9 +84,14 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         }
         flags = sublime.PERSISTENT
         for index, option in options.items():
-            if index in tag.keys() and tag[index] is True:
+            if tag.get(index) is True:
                 flags |= option
         return flags
+
+
+class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCommand):
+    def run(self, edit):
+        self.ClearDecorations()
 
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
@@ -99,15 +104,13 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         preferences = sublime.load_settings("Preferences.sublime-settings")
         if preferences.get("color_scheme"):
-            color_scheme_manager.remove_override(
-                preferences.get("color_scheme"))
+            color_scheme_manager.remove_override(preferences.get("color_scheme"))
 
 
 def _get_scope_for_region(tag: dict) -> str:
     if tag.get("scope"):
         return tag.get("scope")
-    scope_name = "colored.comments.color.{}".format(
-        tag.get("color").get("name"))
+    scope_name = "colored.comments.color.{}".format(tag.get("color").get("name"))
     return scope_name.replace(" ", ".").lower()
 
 
@@ -124,9 +127,7 @@ def plugin_loaded():
     _generate_region_keys(region_keys, settings.tags)
     log.set_debug_logging(settings.debug)
 
-    color_scheme_manager = ColorManager(
-        tags=settings.tags
-    )
+    color_scheme_manager = ColorManager(tags=settings.tags)
 
 
 def plugin_unloaded():
