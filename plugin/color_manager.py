@@ -40,7 +40,7 @@ class ColorManager:
             if False in [name, background, foreground]:
                 continue
 
-            scope = f"{scope_name}{name.lower().replace(" ", ".")}"
+            scope = f"{scope_name}{name.lower().replace(' ', '.')}"
             if not any(rule.get("scope") == scope for rule in rules):
                 entry = {
                     "name": f"[Colored Comments] {name.title()}",
