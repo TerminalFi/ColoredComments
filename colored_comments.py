@@ -44,23 +44,22 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 line = self.view.substr(reg)
                 if not settings.continued_matching_pattern.startswith(" "):
                     line = line.strip()
-                for tag_identifier in settings.tag_regex:
-                    matches = settings.tag_regex.get(tag_identifier).search(
+                for identifier in settings.tag_regex:
+                    matches = settings.get_regex(identifier).search(
                         line.strip()
                     )
                     if not matches:
                         if (
                             settings.continued_matching
                             and prev_match
-                            and line
                             and line.startswith(settings.continued_matching_pattern)
                         ):
                             to_decorate.setdefault(prev_match, []).append(reg)
                         else:
                             prev_match = str()
                         continue
-                    prev_match = tag_identifier
-                    to_decorate.setdefault(tag_identifier, []).append(reg)
+                    prev_match = identifier
+                    to_decorate.setdefault(identifier, []).append(reg)
                     break
 
             for key in to_decorate:
@@ -69,7 +68,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     key=key.lower(),
                     regions=to_decorate.get(key),
                     scope=_get_scope_for_region(tag),
-                    icon=settings.comment_icon if settings.comment_icon_enabled else "",
+                    icon=settings.get_icon(),
                     flags=self._get_flags(tag),
                 )
 

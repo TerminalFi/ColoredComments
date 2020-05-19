@@ -79,6 +79,14 @@ class Settings(object):
         self.tag_regex = OrderedDict()
         self.region_keys = list()
 
+    def get_icon(self) -> str:
+        if self.comment_icon_enabled:
+            return self.comment_icon
+        return ""
+
+    def get_regex(self, identifier: str) -> re.Pattern:
+        return self.tag_regex.get(identifier)
+
 
 _settings_obj = None
 settings = Settings()
