@@ -108,7 +108,7 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
 def _get_scope_for_region(tag: dict) -> str:
     if tag.get("scope"):
         return tag.get("scope")
-    scope_name = "colored.comments.color.{}".format(tag.get("color").get("name"))
+    scope_name = f"colored.comments.color.{tag.get("color").get("name")}"
     return scope_name.replace(" ", ".").lower()
 
 

@@ -192,9 +192,7 @@ def _generate_identifier_expression(tags: dict) -> OrderedDict:
                 priority = tag_priority
             except ValueError as ex:
                 log.debug(
-                    "[Colored Comments]: {} - {}".format(
-                        _generate_identifier_expression.__name__, ex
-                    )
+                    f"[Colored Comments]: {_generate_identifier_expression.__name__} - {ex}"
                 )
         unordered_tags.setdefault(priority, list()).append(
             {"name": key, "settings": value}
