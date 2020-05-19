@@ -87,6 +87,28 @@ class Settings(object):
     def get_regex(self, identifier: str) -> re.Pattern:
         return self.tag_regex.get(identifier)
 
+    def get_matching_pattern(self):
+        return self.continued_matching_pattern
+
+    def get_flags(self, tag: dict) -> int:
+        options = {
+            "outline": sublime.DRAW_NO_FILL,
+            "underline": sublime.DRAW_SOLID_UNDERLINE,
+            "stippled_underline": sublime.DRAW_STIPPLED_UNDERLINE,
+            "squiggly_underline": sublime.DRAW_SQUIGGLY_UNDERLINE,
+        }
+        flags = sublime.PERSISTENT
+        for index, option in options.items():
+            if tag.get(index) is True:
+                flags |= option
+        return flags
+
+    def get_scope_for_region(self, tag: dict) -> str:
+        if tag.get("scope"):
+            return tag.get("scope")
+        scope_name = f"colored.comments.color.{tag.get('color').get('name')}"
+        return scope_name.replace(" ", ".").lower()
+
 
 _settings_obj = None
 settings = Settings()
@@ -206,14 +228,16 @@ def _generate_identifier_expression(tags: dict) -> OrderedDict:
             {"name": key, "settings": value}
         )
     for key in sorted(unordered_tags):
-        for tag in unordered_tags[key]:
+        for tag in unordered_tags.get(key):
             tag_identifier = ["^("]
             tag_identifier.append(
-                tag["settings"]["identifier"]
-                if tag["settings"].get("is_regex", False)
-                else escape_regex(tag["settings"]["identifier"])
+                tag.get("settings").get("identifier")
+                if tag.get("settings").get("is_regex", False)
+                else escape_regex(tag.get("settings").get("identifier"))
             )
             tag_identifier.append(")[ \t]+(?:.*)")
-            flag = re.I if tag["settings"].get("ignorecase", False) else 0
-            identifiers[tag["name"]] = re.compile("".join(tag_identifier), flags=flag)
+            flag = re.I if tag.get("settings").get("ignorecase", False) else 0
+            identifiers[tag.get("name")] = re.compile(
+                "".join(tag_identifier), flags=flag
+            )
     return identifiers
