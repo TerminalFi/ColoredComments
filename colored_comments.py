@@ -6,7 +6,7 @@ from .plugin.color_manager import ColorManager
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"
-VERSION = "3.0.1"
+VERSION = "3.0.2"
 
 color_scheme_manager = ColorManager
 comment_selector = "comment - punctuation.definition.comment"
