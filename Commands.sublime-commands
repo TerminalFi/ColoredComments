@@ -8,6 +8,10 @@
         "command": "colored_comments_theme_revert"
     },
     {
+        "caption": "Colored Comments: Clear Colorization",
+        "command": "colored_comments_clear"
+    },
+    {
         "caption": "Colored Comments: Settings",
         "command": "edit_settings",
         "args": {

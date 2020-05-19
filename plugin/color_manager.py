@@ -2,7 +2,6 @@ import os
 
 import sublime
 
-
 sublime_settings = "Preferences.sublime-settings"
 override_path = "Colored Comments Override"
 scope_name = "colored.comments.color."
@@ -12,10 +11,10 @@ class ColorManager:
     def __init__(self, tags):
         self.tags = tags
 
-    def remove_override(self, scheme):
+    def remove_override(self, scheme) -> None:
         self.save_scheme(os.path.basename(scheme), {"rules": [], "variables": {}})
 
-    def create_user_custom_theme(self):
+    def create_user_custom_theme(self) -> None:
         if not self.tags:
             return
 
@@ -44,11 +43,11 @@ class ColorManager:
             scope = "{}{}".format(scope_name, name.lower().replace(" ", "."))
             if not any(rule.get("scope") == scope for rule in rules):
                 entry = {
-                            "name": "[Colored Comments] {}".format(name.title()),
-                            "scope": scope,
-                            "foreground": foreground,
-                            "background": background
-                        }
+                    "name": "[Colored Comments] {}".format(name.title()),
+                    "scope": scope,
+                    "foreground": foreground,
+                    "background": background,
+                }
                 rules.append(entry)
         scheme_content["rules"] = rules
         return scheme_content
@@ -60,7 +59,9 @@ def _build_scheme_path(scheme: str) -> str:
 
 
 def _create_override_path() -> None:
-    return os.makedirs(os.path.join(sublime.packages_path(), override_path), exist_ok=True)
+    return os.makedirs(
+        os.path.join(sublime.packages_path(), override_path), exist_ok=True
+    )
 
 
 def _get_color_property(property: str, tags: dict) -> str:

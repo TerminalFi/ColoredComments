@@ -6,11 +6,9 @@ from .plugin.color_manager import ColorManager
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"
-VERSION = "3.0.1"
+VERSION = "3.0.2"
 
-region_keys = list()
 color_scheme_manager = ColorManager
-
 comment_selector = "comment - punctuation.definition.comment"
 
 
@@ -28,17 +26,17 @@ class ColoredCommentsEventListener(sublime_plugin.EventListener):
 
 class ColoredCommentsCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        if self.view.match_selector(0, "text.plain"):
+        if self.view.settings().get("syntax") in settings.disabled_syntax:
             return
 
         self.ClearDecorations()
         self.ApplyDecorations()
 
-    def ClearDecorations(self):
-        for region_key in region_keys:
+    def ClearDecorations(self) -> None:
+        for region_key in settings.region_keys:
             self.view.erase_regions(region_key)
 
-    def ApplyDecorations(self):
+    def ApplyDecorations(self) -> None:
         to_decorate = dict()
         prev_match = str()
         for region in self.view.find_by_selector(comment_selector):
@@ -72,10 +70,10 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                     regions=to_decorate.get(key),
                     scope=_get_scope_for_region(tag),
                     icon=settings.comment_icon if settings.comment_icon_enabled else "",
-                    flags=self._get_tag_flags(tag),
+                    flags=self._get_flags(tag),
                 )
 
-    def _get_tag_flags(self, tag):
+    def _get_flags(self, tag: dict) -> int:
         options = {
             "outline": sublime.DRAW_NO_FILL,
             "underline": sublime.DRAW_SOLID_UNDERLINE,
@@ -84,9 +82,14 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         }
         flags = sublime.PERSISTENT
         for index, option in options.items():
-            if index in tag.keys() and tag[index] is True:
+            if tag.get(index) is True:
                 flags |= option
         return flags
+
+
+class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCommand):
+    def run(self, edit):
+        self.ClearDecorations()
 
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
@@ -99,35 +102,24 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         preferences = sublime.load_settings("Preferences.sublime-settings")
         if preferences.get("color_scheme"):
-            color_scheme_manager.remove_override(
-                preferences.get("color_scheme"))
+            color_scheme_manager.remove_override(preferences.get("color_scheme"))
 
 
 def _get_scope_for_region(tag: dict) -> str:
     if tag.get("scope"):
         return tag.get("scope")
-    scope_name = "colored.comments.color.{}".format(
-        tag.get("color").get("name"))
+    scope_name = "colored.comments.color.{}".format(tag.get("color").get("name"))
     return scope_name.replace(" ", ".").lower()
 
 
-def _generate_region_keys(region_keys, tag_map):
-    for key in tag_map:
-        if key.lower() not in region_keys:
-            region_keys.append(key.lower())
-
-
-def plugin_loaded():
+def plugin_loaded() -> None:
     global region_keys
     global color_scheme_manager
     load_settings()
-    _generate_region_keys(region_keys, settings.tags)
     log.set_debug_logging(settings.debug)
 
-    color_scheme_manager = ColorManager(
-        tags=settings.tags
-    )
+    color_scheme_manager = ColorManager(tags=settings.tags)
 
 
-def plugin_unloaded():
+def plugin_unloaded() -> None:
     unload_settings()

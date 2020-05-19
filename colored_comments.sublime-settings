@@ -1,29 +1,28 @@
 {
     // Enable debug logging
     "debug": false,
-    
     // Enables continued matching of the previous tag
     "continued_matching": true,
-
     // Character to continue matching on
     "continued_matching_pattern": "-",
-
     // Shows comment icon next to comments
     "comment_icon_enabled": true,
-
     // Which comment icon to use
     // Valid options: comment, dots
     "comment_icon": "dots",
-
+    // Ignored Syntax List
+    "disabled_syntax": [
+        "Packages/Text/Plain text.tmLanguage",
+        "Packages/Markdown/MultiMarkdown.sublime-syntax",
+        "Packages/Markdown/Markdown.sublime-syntax"
+    ],
     // This is the list of tags/identifiers you want to highlight
     // in your code.
-    "tags":
-    {
+    "tags": {
         // Friendly name for you to know what the purpose is
         // and used in the OrderedDict
         // These should be unique
-        "Important":
-        {
+        "Important": {
             // The actual identifier used to highlight the comments
             "identifier": "!",
             // Enables sublime.DRAW_SOLID_UNDERLINE
@@ -45,8 +44,7 @@
             // Enables ignorecase for the ideentifier
             "ignorecase": true,
             // Colors used for Scope generation
-            "color":
-            {
+            "color": {
                 // Scope name this becomes colored.comments.color.important
                 "name": "important",
                 // Color you want the text to be
@@ -57,30 +55,24 @@
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
-        "Deprecated":
-        {
+        "Deprecated": {
             "identifier": "*",
-            "color":
-            {
+            "color": {
                 "name": "deprecated",
                 "foreground": "#98C379",
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
-        "Question":
-        {
+        "Question": {
             "identifier": "?",
-            "color":
-            {
+            "color": {
                 "name": "question",
                 "foreground": "#3498DB",
                 "background": "rgba(1,22,38, 0.1)"
             },
         },
-        "TODO":
-        {
-            "color":
-            {
+        "TODO": {
+            "color": {
                 "background": "rgba(1,22,38, 0.1)",
                 "foreground": "#FF8C00",
                 "name": "todo"
@@ -89,10 +81,8 @@
             "is_regex": true,
             "ignorecase": true,
         },
-        "FIXME":
-        {
-            "color":
-            {
+        "FIXME": {
+            "color": {
                 "background": "rgba(1,22,38, 0.1)",
                 "foreground": "#9933FF",
                 "name": "fixme"
@@ -100,10 +90,8 @@
             "identifier": "FIXME[:]?|fixme[:]?",
             "is_regex": true
         },
-        "UNDEFINED":
-        {
-            "color":
-            {
+        "UNDEFINED": {
+            "color": {
                 "background": "rgba(1,22,38, 0.1)",
                 "foreground": "#474747",
                 "name": "undefined"
