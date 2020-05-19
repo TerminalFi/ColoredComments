@@ -42,25 +42,21 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         for region in self.view.find_by_selector(comment_selector):
             for reg in self.view.split_by_newlines(region):
                 line = self.view.substr(reg)
-                if not settings.continued_matching_pattern.startswith(" "):
+                if not settings.get_matching_pattern().startswith(" "):
                     line = line.strip()
-                for tag_identifier in settings.tag_regex:
-                    matches = settings.tag_regex.get(tag_identifier).search(
-                        line.strip()
-                    )
-                    if not matches:
+                for identifier in settings.tag_regex:
+                    if not settings.get_regex(identifier).search(line.strip()):
                         if (
                             settings.continued_matching
                             and prev_match
-                            and line
-                            and line.startswith(settings.continued_matching_pattern)
+                            and line.startswith(settings.get_matching_pattern())
                         ):
                             to_decorate.setdefault(prev_match, []).append(reg)
                         else:
                             prev_match = str()
                         continue
-                    prev_match = tag_identifier
-                    to_decorate.setdefault(tag_identifier, []).append(reg)
+                    prev_match = identifier
+                    to_decorate.setdefault(identifier, []).append(reg)
                     break
 
             for key in to_decorate:
@@ -68,23 +64,10 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 self.view.add_regions(
                     key=key.lower(),
                     regions=to_decorate.get(key),
-                    scope=_get_scope_for_region(tag),
-                    icon=settings.comment_icon if settings.comment_icon_enabled else "",
-                    flags=self._get_flags(tag),
+                    scope=settings.get_scope_for_region(tag),
+                    icon=settings.get_icon(),
+                    flags=settings.get_flags(tag),
                 )
-
-    def _get_flags(self, tag: dict) -> int:
-        options = {
-            "outline": sublime.DRAW_NO_FILL,
-            "underline": sublime.DRAW_SOLID_UNDERLINE,
-            "stippled_underline": sublime.DRAW_STIPPLED_UNDERLINE,
-            "squiggly_underline": sublime.DRAW_SQUIGGLY_UNDERLINE,
-        }
-        flags = sublime.PERSISTENT
-        for index, option in options.items():
-            if tag.get(index) is True:
-                flags |= option
-        return flags
 
 
 class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCommand):
@@ -105,15 +88,7 @@ class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
             color_scheme_manager.remove_override(preferences.get("color_scheme"))
 
 
-def _get_scope_for_region(tag: dict) -> str:
-    if tag.get("scope"):
-        return tag.get("scope")
-    scope_name = "colored.comments.color.{}".format(tag.get("color").get("name"))
-    return scope_name.replace(" ", ".").lower()
-
-
 def plugin_loaded() -> None:
-    global region_keys
     global color_scheme_manager
     load_settings()
     log.set_debug_logging(settings.debug)

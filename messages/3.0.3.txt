@@ -1,0 +1,6 @@
+Version 3.0.3 (May 18, 2020)
+----------------------------
+
+  * NEW Sublime Text 4 Fork
+  - f-strings
+  - python 3.8

@@ -12,5 +12,5 @@ def debug(msg: str) -> None:
         printf(msg)
 
 
-def printf(msg: str, prefix: str = 'Colored Comments') -> None:
-    print("{}:{}".format(prefix, msg))
+def printf(msg: str, prefix: str = "Colored Comments") -> None:
+    print(f"{prefix}:{msg}")
