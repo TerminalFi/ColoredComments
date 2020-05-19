@@ -1,0 +1,10 @@
+Version 3.0.2 (May 18, 2020)
+----------------------------
+
+  * NEW Setting: disabled_syntax
+    - Now you can specify if colored comments
+    should be disabled on certain syntax's
+
+  * NEW Command: Colored Comments: Clear Colorization
+    - Useful when the file was edited outside of
+    Sublime Text and the color regions were messed up
