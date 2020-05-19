@@ -1,7 +1,7 @@
 # Colored Comments
 The Colored Comments plugin was designed to help create more readable comments
-throughout your code. It was heavily inspired by [Better Comments by aaron-bond
-][]
+throughout your code. It was heavily inspired by [Better Comments by aaron-bond][]
+
 
 ## Global Settings
 The following are global settings for ColoredComments
@@ -69,7 +69,9 @@ Taken from [Sublime MiniHTML Reference][]
 + region.purplish
 + region.pinkish
 
+
 ### Example Tag
+
 ```json
 "Important":
         {
@@ -88,6 +90,7 @@ Taken from [Sublime MiniHTML Reference][]
 ```
 
 ## Contributors
+
 
 + [TheMilkMan](https://github.com/themilkman)
 
