@@ -77,6 +77,7 @@ class Settings(object):
         self.disabled_syntax = list()
         self.tags = dict()
         self.tag_regex = OrderedDict()
+        self.region_keys = list()
 
 
 _settings_obj = None
@@ -161,16 +162,25 @@ def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
     )
     settings.tags = get_dict_setting(settings_obj, "tags", default_tags)
     settings.tag_regex = _generate_identifier_expression(settings.tags)
+    settings.region_keys = _generate_region_keys(settings.tags)
 
 
-def escape_regex(pattern):
+def _generate_region_keys(tags: dict) -> list:
+    region_keys = list()
+    for key in tags:
+        if key.lower() not in region_keys:
+            region_keys.append(key.lower())
+    return region_keys
+
+
+def escape_regex(pattern: str) -> str:
     pattern = re.escape(pattern)
     for character in "'<>`":
         pattern = pattern.replace("\\" + character, character)
     return pattern
 
 
-def _generate_identifier_expression(tags):
+def _generate_identifier_expression(tags: dict) -> OrderedDict:
     unordered_tags = dict()
     identifiers = OrderedDict()
     for key, value in tags.items():
