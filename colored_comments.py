@@ -2,13 +2,12 @@ import sublime
 import sublime_plugin
 
 from .plugin import logger as log
-from .plugin.color_manager import ColorManager
+from .plugin.color_manager import load_color_manager, color_manager
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"
 VERSION = "3.0.2"
 
-color_scheme_manager = ColorManager
 comment_selector = "comment - punctuation.definition.comment"
 
 
@@ -79,8 +78,9 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
             "underline": sublime.DRAW_SOLID_UNDERLINE,
             "stippled_underline": sublime.DRAW_STIPPLED_UNDERLINE,
             "squiggly_underline": sublime.DRAW_SQUIGGLY_UNDERLINE,
+            "persistent": sublime.PERSISTENT,
         }
-        flags = sublime.PERSISTENT
+        flags = 0
         for index, option in options.items():
             if tag.get(index) is True:
                 flags |= option
@@ -94,15 +94,14 @@ class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCom
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        color_scheme_manager.tags = settings.tags
-        color_scheme_manager.create_user_custom_theme()
+        color_manager.create_user_custom_theme()
 
 
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         preferences = sublime.load_settings("Preferences.sublime-settings")
         if preferences.get("color_scheme"):
-            color_scheme_manager.remove_override(preferences.get("color_scheme"))
+            color_manager.remove_override(preferences.get("color_scheme"))
 
 
 def _get_scope_for_region(tag: dict) -> str:
@@ -113,12 +112,10 @@ def _get_scope_for_region(tag: dict) -> str:
 
 
 def plugin_loaded() -> None:
-    global region_keys
     global color_scheme_manager
     load_settings()
+    load_color_manager()
     log.set_debug_logging(settings.debug)
-
-    color_scheme_manager = ColorManager(tags=settings.tags)
 
 
 def plugin_unloaded() -> None:
