@@ -1,5 +1,7 @@
 import os
 
+from .settings import settings
+
 import sublime
 
 sublime_settings = "Preferences.sublime-settings"
@@ -51,6 +53,14 @@ class ColorManager:
                 rules.append(entry)
         scheme_content["rules"] = rules
         return scheme_content
+
+
+color_manager = ColorManager
+
+
+def load_color_manager() -> ColorManager:
+    global color_manager
+    color_manager = ColorManager(tags=settings.tags)
 
 
 def _build_scheme_path(scheme: str) -> str:

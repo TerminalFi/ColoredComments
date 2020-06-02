@@ -96,8 +96,9 @@ class Settings(object):
             "underline": sublime.DRAW_SOLID_UNDERLINE,
             "stippled_underline": sublime.DRAW_STIPPLED_UNDERLINE,
             "squiggly_underline": sublime.DRAW_SQUIGGLY_UNDERLINE,
+            "persistent": sublime.PERSISTENT,
         }
-        flags = sublime.PERSISTENT
+        flags = 0
         for index, option in options.items():
             if tag.get(index) is True:
                 flags |= option

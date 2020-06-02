@@ -2,13 +2,12 @@ import sublime
 import sublime_plugin
 
 from .plugin import logger as log
-from .plugin.color_manager import ColorManager
+from .plugin.color_manager import load_color_manager, color_manager
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"
 VERSION = "3.0.2"
 
-color_scheme_manager = ColorManager
 comment_selector = "comment - punctuation.definition.comment"
 
 
@@ -77,23 +76,21 @@ class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCom
 
 class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        color_scheme_manager.tags = settings.tags
-        color_scheme_manager.create_user_custom_theme()
+        color_manager.create_user_custom_theme()
 
 
 class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         preferences = sublime.load_settings("Preferences.sublime-settings")
         if preferences.get("color_scheme"):
-            color_scheme_manager.remove_override(preferences.get("color_scheme"))
+            color_manager.remove_override(preferences.get("color_scheme"))
 
 
 def plugin_loaded() -> None:
     global color_scheme_manager
     load_settings()
+    load_color_manager()
     log.set_debug_logging(settings.debug)
-
-    color_scheme_manager = ColorManager(tags=settings.tags)
 
 
 def plugin_unloaded() -> None:
