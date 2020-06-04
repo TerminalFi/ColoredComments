@@ -2,7 +2,7 @@ import sublime
 import sublime_plugin
 
 from .plugin import logger as log
-from .plugin.color_manager import load_color_manager, color_manager
+from .plugin.color_manager import color_manager, load_color_manager
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"

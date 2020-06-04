@@ -4,8 +4,10 @@ from .settings import settings
 
 import sublime
 
+from .settings import settings
+
 sublime_settings = "Preferences.sublime-settings"
-override_path = "Colored Comments Override"
+override_path = "xxx Colored Comments Override xxx"
 scope_name = "colored.comments.color."
 
 
