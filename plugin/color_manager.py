@@ -1,12 +1,13 @@
 import os
-
-from .settings import settings
+import shutil
+from pathlib import Path
 
 import sublime
 
 from .settings import settings
 
 sublime_settings = "Preferences.sublime-settings"
+old_override_path = "Colored Comments Override"
 override_path = "xxx Colored Comments Override xxx"
 scope_name = "colored.comments.color."
 
@@ -71,6 +72,9 @@ def _build_scheme_path(scheme: str) -> str:
 
 
 def _create_override_path() -> None:
+    old_path = Path(old_override_path)
+    if old_path.exists() and old_path.is_dir():
+        shutil.rmtree(old_path)
     return os.makedirs(
         os.path.join(sublime.packages_path(), override_path), exist_ok=True
     )
