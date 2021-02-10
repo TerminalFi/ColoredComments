@@ -5,6 +5,7 @@ from pathlib import Path
 import sublime
 
 from .settings import settings
+from .logger import debug
 
 sublime_settings = "Preferences.sublime-settings"
 old_override_path = "Colored Comments Override"
@@ -21,6 +22,7 @@ class ColorManager:
 
     def create_user_custom_theme(self) -> None:
         if not self.tags:
+            debug('create_user_custom_theme:\tno tags defined')
             return
 
         self.sublime_pref = sublime.load_settings(sublime_settings)
@@ -29,6 +31,7 @@ class ColorManager:
         self.save_scheme(os.path.basename(color_scheme), scheme_content)
 
     def save_scheme(self, scheme_name: str, scheme_content: dict) -> None:
+        debug('save_scheme:\tsaving new scheme')
         user_override_path = _build_scheme_path(os.path.basename(scheme_name))
         with open(user_override_path, "w") as outfile:
             outfile.write(sublime.encode_value(scheme_content, True))
@@ -58,7 +61,7 @@ class ColorManager:
         return scheme_content
 
 
-color_manager = ColorManager
+color_manager = None
 
 
 def load_color_manager() -> ColorManager:
@@ -68,7 +71,10 @@ def load_color_manager() -> ColorManager:
 
 def _build_scheme_path(scheme: str) -> str:
     _create_override_path()
-    return os.path.join(sublime.packages_path(), override_path, scheme)
+    scheme_path = os.path.join(sublime.packages_path(), override_path, scheme)
+    if scheme_path.endswith('.tmTheme'):
+        scheme_path = scheme_path.replace('.tmTheme', '.sublime-color-scheme', -1)
+    return scheme_path
 
 
 def _create_override_path() -> None:
