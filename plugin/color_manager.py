@@ -55,7 +55,10 @@ class ColorManager:
 
 def _build_scheme_path(scheme: str) -> str:
     _create_override_path()
-    return os.path.join(sublime.packages_path(), override_path, scheme)
+    scheme_path = os.path.join(sublime.packages_path(), override_path, scheme)
+    if scheme_path.endswith('.tmTheme'):
+        scheme_path = scheme_path.replace('.tmTheme', '.sublime-color-scheme', -1)
+    return scheme_path
 
 
 def _create_override_path() -> None:
