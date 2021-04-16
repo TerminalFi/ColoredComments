@@ -7,6 +7,7 @@ from . import logger as log
 
 default_tags = {
     "Important": {
+        "scope": "comments.important",
         "identifier": "!",
         "underline": False,
         "stippled_underline": False,
@@ -14,56 +15,31 @@ default_tags = {
         "outline": False,
         "is_regex": False,
         "ignorecase": True,
-        "color": {
-            "name": "important",
-            "foreground": "#FF2D00",
-            "background": "rgba(1,22,38, 0.1)",
-        },
     },
     "Deprecated": {
+        "scope": "comments.deprecated",
         "identifier": "*",
-        "color": {
-            "name": "deprecated",
-            "foreground": "#98C379",
-            "background": "rgba(1,22,38, 0.1)",
-        },
     },
     "Question": {
+        "scope": "comments.question",
         "identifier": "?",
-        "color": {
-            "name": "question",
-            "foreground": "#3498DB",
-            "background": "rgba(1,22,38, 0.1)",
-        },
     },
     "TODO": {
-        "color": {
-            "background": "rgba(1,22,38, 0.1)",
-            "foreground": "#FF8C00",
-            "name": "todo",
-        },
+        "scope": "comments.todo",
         "identifier": "TODO[:]?|todo[:]?",
         "is_regex": True,
         "ignorecase": True,
     },
     "FIXME": {
-        "color": {
-            "background": "rgba(1,22,38, 0.1)",
-            "foreground": "#9933FF",
-            "name": "fixme",
-        },
+        "scope": "comments.fixme",
         "identifier": "FIXME[:]?|fixme[:]?",
-        "is_regex": True,
+        "is_regex": True
     },
     "UNDEFINED": {
-        "color": {
-            "background": "rgba(1,22,38, 0.1)",
-            "foreground": "#474747",
-            "name": "undefined",
-        },
+        "scope": "comments.undefined",
         "identifier": "//[:]?",
-        "is_regex": True,
-    },
+        "is_regex": True
+    }
 }
 
 
@@ -104,10 +80,10 @@ class Settings(object):
                 flags |= option
         return flags
 
-    def get_scope_for_region(self, tag: dict) -> str:
+    def get_scope_for_region(self, key: str, tag: dict) -> str:
         if tag.get("scope"):
             return tag.get("scope")
-        scope_name = f"colored.comments.color.{tag.get('color').get('name')}"
+        scope_name = f"comments.{key.lower()}"
         return scope_name.replace(" ", ".").lower()
 
 
@@ -189,7 +165,8 @@ def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
         get_str_setting(settings_obj, "comment_icon", "dots")
     )
     settings.disabled_syntax = get_list_setting(
-        settings_obj, "disabled_syntax", ["Packages/Text/Plain text.tmLanguage"]
+        settings_obj, "disabled_syntax", [
+            "Packages/Text/Plain text.tmLanguage"]
     )
     settings.tags = get_dict_setting(settings_obj, "tags", default_tags)
     settings.tag_regex = _generate_identifier_expression(settings.tags)

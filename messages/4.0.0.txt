@@ -1,0 +1,4 @@
+Version 3.0.3 (May 18, 2020)
+----------------------------
+
+  * Remove color manager in favor of User creating Color Scheme Overrides
