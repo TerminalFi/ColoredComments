@@ -6,7 +6,7 @@ from .lib.sublime_lib import ResourcePath
 from .plugin.settings import load_settings, settings, unload_settings
 
 NAME = "Colored Comments"
-VERSION = "3.0.3"
+VERSION = "3.0.4"
 
 comment_selector = "comment - punctuation.definition.comment"
 
@@ -181,18 +181,6 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
 class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCommand):
     def run(self, edit):
         self.ClearDecorations()
-
-
-class ColoredCommentsThemeGeneratorCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        color_manager.create_user_custom_theme()
-
-
-class ColoredCommentsThemeRevertCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        preferences = sublime.load_settings("Preferences.sublime-settings")
-        if preferences.get("color_scheme"):
-            color_manager.remove_override(preferences.get("color_scheme"))
 
 
 def plugin_loaded() -> None:

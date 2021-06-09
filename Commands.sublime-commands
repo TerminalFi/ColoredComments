@@ -10,7 +10,8 @@
     {
         "caption": "Colored Comments: Settings",
         "command": "edit_settings",
-        "args": {
+        "args":
+        {
             "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
             "default": "{\n\t$0\n}\n"
         }
