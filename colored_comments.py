@@ -137,7 +137,7 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
         if self.view.settings().get("syntax") in settings.disabled_syntax:
             return
 
-        self.ClearDecorations()
+        # self.ClearDecorations()
         self.ApplyDecorations()
 
     def ClearDecorations(self) -> None:
