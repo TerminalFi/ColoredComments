@@ -123,26 +123,25 @@ class ColoredCommentsEditSchemeCommand(sublime_plugin.WindowCommand):
 class ColoredCommentsEventListener(sublime_plugin.EventListener):
     def on_init(self, views):
         for view in views:
-            view.run_command("colored_comments")
+            if (window := view.window()) is not None:
+                window.run_command("colored_comments")
 
     def on_load_async(self, view):
-        view.run_command("colored_comments")
+        if (window := view.window()) is not None:
+            window.run_command("colored_comments")
 
     def on_modified_async(self, view):
-        view.run_command("colored_comments")
+        if (window := view.window()) is not None:
+            window.run_command("colored_comments")
 
 
-class ColoredCommentsCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
+class ColoredCommentsCommand(sublime_plugin.WindowCommand):
+    def run(self, vid=None):
+        self.view = self.window.active_view() if vid is None else sublime.View(vid)
         if self.view.settings().get("syntax") in settings.disabled_syntax:
             return
 
-        # self.ClearDecorations()
         self.ApplyDecorations()
-
-    def ClearDecorations(self) -> None:
-        for region_key in settings.region_keys:
-            self.view.erase_regions(region_key)
 
     def ApplyDecorations(self) -> None:
         to_decorate = dict()
@@ -178,9 +177,14 @@ class ColoredCommentsCommand(sublime_plugin.TextCommand):
                 )
 
 
-class ColoredCommentsClearCommand(ColoredCommentsCommand, sublime_plugin.TextCommand):
-    def run(self, edit):
+class ColoredCommentsClearCommand(sublime_plugin.WindowCommand):
+    def run(self, vid=None):
+        self.view = self.window.active_view() if vid is None else sublime.View(vid)
         self.ClearDecorations()
+
+    def ClearDecorations(self) -> None:
+        for region_key in settings.region_keys:
+            self.view.erase_regions(region_key)
 
 
 def plugin_loaded() -> None:
