@@ -5,6 +5,10 @@
     "continued_matching": true,
     // Character to continue matching on
     "continued_matching_pattern": "-",
+    // Automatically continue highlighting based on previous line without requiring the continuation pattern
+    "auto_continue_highlight": false,
+    // Delay in milliseconds before applying comment decorations after typing (debounce)
+    "debounce_delay": 300,
     // Shows comment icon next to comments
     "comment_icon_enabled": false,
     // Which comment icon to use

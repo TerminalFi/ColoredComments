@@ -48,6 +48,8 @@ class Settings(object):
         self.debug = False
         self.continued_matching = True
         self.continued_matching_pattern = "-"
+        self.auto_continue_highlight = False
+        self.debounce_delay = 300  # Debounce delay in milliseconds
         self.comment_icon_enabled = True
         self.comment_icon = "dots"
         self.disabled_syntax = list()
@@ -150,6 +152,24 @@ def get_dict_setting(settings_obj: sublime.Settings, key: str, default: dict) ->
         return default
 
 
+def get_int_setting(settings_obj: sublime.Settings, key: str, default: int) -> int:
+    """Get an integer setting with fallback.
+    
+    Args:
+        settings_obj: The settings object to fetch from
+        key: The setting key
+        default: The default value if not found or wrong type
+        
+    Returns:
+        int: The setting value or default
+    """
+    val = settings_obj.get(key)
+    if isinstance(val, int):
+        return val
+    else:
+        return default
+
+
 def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
     settings.debug = get_boolean_setting(settings_obj, "debug", True)
     settings.continued_matching = get_boolean_setting(
@@ -157,6 +177,12 @@ def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
     )
     settings.continued_matching_pattern = get_str_setting(
         settings_obj, "continued_matching_pattern", "-"
+    )
+    settings.auto_continue_highlight = get_boolean_setting(
+        settings_obj, "auto_continue_highlight", False
+    )
+    settings.debounce_delay = get_int_setting(
+        settings_obj, "debounce_delay", 300
     )
     settings.comment_icon_enabled = get_boolean_setting(
         settings_obj, "comment_icon_enabled", True
