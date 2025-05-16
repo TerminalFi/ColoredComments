@@ -1,0 +1,64 @@
+[
+    {
+        "caption": "Colored Comments: Edit Color Scheme",
+        "command": "colored_comments_edit_scheme"
+    },
+    {
+        "caption": "Colored Comments: Apply Decorations",
+        "command": "colored_comments"
+    },
+    {
+        "caption": "Colored Comments: Clear Decorations",
+        "command": "colored_comments_clear"
+    },
+    {
+        "caption": "Colored Comments: List All Tags",
+        "command": "colored_comments_list_tags"
+    },
+    {
+        "caption": "Colored Comments: List All Tags in Current File",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "current_file_only": true
+        }
+    },
+    {
+        "caption": "Colored Comments: List TODOs",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "tag_filter": "TODO",
+            "current_file_only": true
+        }
+    },
+    {
+        "caption": "Colored Comments: List TODOs in Current File",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "tag_filter": "TODO",
+            "current_file_only": true
+        }
+    },
+    {
+        "caption": "Colored Comments: List FIXMEs",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "tag_filter": "FIXME"
+        }
+    },
+    {
+        "caption": "Colored Comments: List FIXMEs in Current File",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "tag_filter": "FIXME",
+            "current_file_only": true
+        }
+    },
+    {
+        "caption": "Colored Comments: Toggle Debug Logging",
+        "command": "colored_comments_toggle_debug"
+    },
+    {
+        "caption": "Colored Comments: Show Debug Logs",
+        "command": "colored_comments_show_logs"
+    }
+]
