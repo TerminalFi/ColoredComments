@@ -141,6 +141,7 @@ class ColoredCommentsCommand(sublime_plugin.WindowCommand):
         if self.view.settings().get("syntax") in settings.disabled_syntax:
             return
 
+        self.ClearDecorations()
         self.ApplyDecorations()
 
     def ApplyDecorations(self) -> None:
@@ -176,15 +177,15 @@ class ColoredCommentsCommand(sublime_plugin.WindowCommand):
                     flags=settings.get_flags(tag),
                 )
 
+    def ClearDecorations(self) -> None:
+        for region_key in settings.region_keys:
+            self.view.erase_regions(region_key)
 
-class ColoredCommentsClearCommand(sublime_plugin.WindowCommand):
+class ColoredCommentsClearCommand(ColoredCommentsCommand):
     def run(self, vid=None):
         self.view = self.window.active_view() if vid is None else sublime.View(vid)
         self.ClearDecorations()
 
-    def ClearDecorations(self) -> None:
-        for region_key in settings.region_keys:
-            self.view.erase_regions(region_key)
 
 
 def plugin_loaded() -> None:
