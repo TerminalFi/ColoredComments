@@ -527,6 +527,7 @@ class AsyncTagScanner:
         results = []
         file_view = None
         was_already_open = False
+        temp_panel = None
         
         try:
             log.debug(f"Scanning file {file_path} for tags")
@@ -539,17 +540,30 @@ class AsyncTagScanner:
                     log.debug(f"File {file_path.name} is already open, using existing view")
                     break
             
-            # If not already open, open it as transient
+            # If not already open, use output panel approach
             if not file_view:
-                log.debug(f"Opening file {file_path.name} as transient view")
-                file_view = self.window.open_file(str(file_path), sublime.ENCODED_POSITION | sublime.TRANSIENT)
+                log.debug(f"Loading file {file_path.name} content into temporary output panel")
+                
+                # Load file content
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+
+                # Create a temporary view with the file content
+                temp_panel = self.window.create_output_panel('_colored_comments_temp_view')
+                temp_panel.run_command('append', {'characters': content})
+                
+                # Set the syntax using sublime.find_syntax_for_file
+                syntax = sublime.find_syntax_for_file(str(file_path))
+                if syntax:
+                    temp_panel.assign_syntax(syntax)
+                    log.debug(f"Assigned syntax {syntax.name} to temp panel for {file_path.name}")
+                else:
+                    log.debug(f"No syntax found for {file_path.name}, using default")
+                
+                file_view = temp_panel
                 was_already_open = False
             
-            # Wait for the file to load
-            while file_view.is_loading():
-                await asyncio.sleep(0.01)
-            
-            log.debug(f"File {file_path.name} loaded, using CommentProcessor")
+            log.debug(f"File {file_path.name} ready for processing, using CommentProcessor")
             
             # Use the unified CommentProcessor
             processor = CommentProcessor(file_view)
@@ -572,13 +586,10 @@ class AsyncTagScanner:
             import traceback
             log.debug(f"Traceback: {traceback.format_exc()}")
         finally:
-            # Only close the view if we opened it as transient AND it's not the active view
-            if file_view and not was_already_open and file_view.is_valid():
-                if (active_view := self.window.active_view()) and file_view != active_view:
-                    log.debug(f"Closing transient view for {file_path.name}")
-                    file_view.close()
-                else:
-                    log.debug(f"Not closing {file_path.name} because it's the active view")
+            # Clean up temporary panel if we created one
+            if temp_panel:
+                log.debug(f"Cleaning up temporary panel for {file_path.name}")
+                self.window.destroy_output_panel('_colored_comments_temp_view')
         
         return results
 
