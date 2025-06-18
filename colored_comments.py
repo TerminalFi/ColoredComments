@@ -20,6 +20,76 @@ KIND_SCHEME = (sublime.KIND_ID_VARIABLE, "s", "Scheme")
 DEFAULT_CS = 'Packages/Color Scheme - Default/Mariana.sublime-color-scheme'
 
 
+class CommentProcessor:
+    """Unified comment processor for both decoration and tag scanning."""
+
+    def __init__(self, view):
+        self.view = view
+
+    def should_process_view(self):
+        """Check if the view needs to be processed based on syntax settings."""
+        syntax = self.view.settings().get("syntax")
+        should_process = syntax not in settings.disabled_syntax
+        log.debug(f"View {self.view.id()} syntax check: {syntax}, should_process: {should_process}")
+        return should_process
+
+    def find_comment_regions(self):
+        """Find all comment regions in the view."""
+        regions = self.view.find_by_selector(comment_selector)
+        log.debug(f"View {self.view.id()} found {len(regions)} comment regions using selector: {comment_selector}")
+        return regions
+
+    async def process_comments(self, processor_func, batch_size=100):
+        """Process all comments in the view using the provided processor function.
+
+        Args:
+            processor_func: Function to call for each comment line
+                           Should accept (line, reg, line_num, **kwargs)
+            batch_size: Number of regions to process in each batch
+        """
+        if not self.should_process_view():
+            log.debug(f"View {self.view.id()} should not be processed")
+            return []
+
+        comment_regions = self.find_comment_regions()
+
+        if not comment_regions:
+            log.debug(f"View {self.view.id()} no comment regions found")
+            return []
+
+        results = []
+        total_processed = 0
+
+        # Process in batches to maintain UI responsiveness
+        for i in range(0, len(comment_regions), batch_size):
+            batch = comment_regions[i:i + batch_size]
+            log.debug(f"View {self.view.id()} processing batch {i//batch_size + 1}, regions {i} to {i + len(batch)}")
+
+            batch_processed = 0
+            for region in batch:
+                for reg in self.view.split_by_newlines(region):
+                    line = self.view.substr(reg)
+                    line_num = self.view.rowcol(reg.begin())[0] + 1
+
+                    result = await processor_func(line, reg, line_num)
+                    if result is not None:
+                        if isinstance(result, list):
+                            results.extend(result)
+                        else:
+                            results.append(result)
+
+                    batch_processed += 1
+
+            total_processed += batch_processed
+            log.debug(f"View {self.view.id()} batch complete, processed {batch_processed} lines, total: {total_processed}")
+
+            # Yield control after each batch to keep UI responsive
+            if i + batch_size < len(comment_regions):
+                await asyncio.sleep(0.001)
+
+        return results
+
+
 class CommentDecorationManager:
     """Manages the decoration of comments in a view with async support."""
 
@@ -28,14 +98,12 @@ class CommentDecorationManager:
         self._last_change_count = 0
         self._last_region_row = -1
         self._processing = False
+        self.processor = CommentProcessor(view)
         log.debug(f"CommentDecorationManager created for view {view.id()}: {view.file_name()}")
 
     def should_process_view(self):
         """Check if the view needs to be processed based on syntax settings."""
-        syntax = self.view.settings().get("syntax")
-        should_process = syntax not in settings.disabled_syntax
-        log.debug(f"View {self.view.id()} syntax check: {syntax}, should_process: {should_process}")
-        return should_process
+        return self.processor.should_process_view()
 
     def needs_update(self):
         """Check if view has changed since last processing."""
@@ -50,15 +118,13 @@ class CommentDecorationManager:
 
     def find_comment_regions(self):
         """Find all comment regions in the view."""
-        regions = self.view.find_by_selector(comment_selector)
-        log.debug(f"View {self.view.id()} found {len(regions)} comment regions using selector: {comment_selector}")
-        return regions
+        return self.processor.find_comment_regions()
 
-    def process_comment_line(self, line, to_decorate, reg, prev_match):
-        """Process a single comment line and identify its tag."""
+    async def process_comment_line_for_decoration(self, line, reg, line_num, to_decorate, prev_match=""):
+        """Process a single comment line for decoration."""
         stripped_line = line.strip()
         if not stripped_line:
-            return ""
+            return None
 
         if not settings.get_matching_pattern().startswith(" "):
             line = stripped_line
@@ -66,14 +132,14 @@ class CommentDecorationManager:
         # Check adjacency for continuation
         is_adjacent = False
         if self._last_region_row != -1:
-            current_row, _ = self.view.rowcol(reg.begin())
+            current_row = line_num - 1  # line_num is 1-based, rowcol is 0-based
             is_adjacent = current_row == self._last_region_row + 1
 
         # Try to match tag patterns first
         for identifier in settings.tag_regex:
             if settings.get_regex(identifier).search(line.strip()):
                 to_decorate.setdefault(identifier, []).append(reg)
-                self._last_region_row, _ = self.view.rowcol(reg.end())
+                self._last_region_row = line_num - 1
                 log.debug(f"View {self.view.id()} matched tag '{identifier}' at line: {stripped_line[:50]}...")
                 return identifier
 
@@ -83,11 +149,11 @@ class CommentDecorationManager:
             settings.auto_continue_highlight
         ):
             to_decorate.setdefault(prev_match, []).append(reg)
-            self._last_region_row, _ = self.view.rowcol(reg.end())
+            self._last_region_row = line_num - 1
             log.debug(f"View {self.view.id()} continued tag '{prev_match}' at line: {stripped_line[:50]}...")
             return prev_match
 
-        return ""
+        return None
 
     def apply_region_styles(self, to_decorate):
         """Apply visual styles to decorated regions."""
@@ -156,34 +222,16 @@ class CommentDecorationManager:
             prev_match = ""
             self._last_region_row = -1
 
-            comment_regions = self.find_comment_regions()
+            # Use the unified comment processor
+            async def decoration_processor(line, reg, line_num):
+                nonlocal prev_match
+                result = await self.process_comment_line_for_decoration(
+                    line, reg, line_num, to_decorate, prev_match
+                )
+                prev_match = result if result else prev_match
+                return None  # We don't need to collect results, just populate to_decorate
 
-            if not comment_regions:
-                log.debug(f"View {self.view.id()} no comment regions found")
-                return
-
-            # Process in batches to maintain UI responsiveness
-            batch_size = 100
-            total_processed = 0
-
-            for i in range(0, len(comment_regions), batch_size):
-                batch = comment_regions[i:i + batch_size]
-                log.debug(f"View {self.view.id()} processing batch {i//batch_size + 1}, regions {i} to {i + len(batch)}")
-
-                batch_processed = 0
-                for region in batch:
-                    for reg in self.view.split_by_newlines(region):
-                        line = self.view.substr(reg)
-                        result = self.process_comment_line(line, to_decorate, reg, prev_match)
-                        prev_match = result if result else prev_match
-                        batch_processed += 1
-
-                total_processed += batch_processed
-                log.debug(f"View {self.view.id()} batch complete, processed {batch_processed} lines, total: {total_processed}")
-
-                # Yield control after each batch to keep UI responsive
-                if i + batch_size < len(comment_regions):
-                    await asyncio.sleep(0.001)
+            await self.processor.process_comments(decoration_processor, batch_size=100)
 
             log.debug(f"View {self.view.id()} applying region styles")
             self.apply_region_styles(to_decorate)
@@ -480,7 +528,7 @@ class AsyncTagScanner:
         return files
 
     async def _scan_file(self, file_path, tag_filter):
-        """Scan a single file for comment tags using Sublime's syntax engine."""
+        """Scan a single file for comment tags using the unified CommentProcessor."""
         results = []
         file_view = None
         was_already_open = False
@@ -506,54 +554,21 @@ class AsyncTagScanner:
             while file_view.is_loading():
                 await asyncio.sleep(0.01)
 
-            log.debug(f"File {file_path.name} loaded, checking syntax")
+            log.debug(f"File {file_path.name} loaded, using CommentProcessor")
 
-            # Check if we should process this view based on syntax
-            syntax = file_view.settings().get("syntax")
-            if syntax in settings.disabled_syntax:
-                log.debug(f"File {file_path.name} has disabled syntax ({syntax}), skipping")
-                return results
+            # Use the unified CommentProcessor
+            processor = CommentProcessor(file_view)
 
-            # Use the same comment detection as CommentDecorationManager
-            comment_regions = file_view.find_by_selector(comment_selector)
-            log.debug(f"File {file_path.name} found {len(comment_regions)} comment regions using selector: {comment_selector}")
+            # Create a processor function for tag scanning
+            async def tag_processor(line, reg, line_num):
+                return await self._process_comment_line(line, line_num, file_path, tag_filter)
 
-            if not comment_regions:
-                log.debug(f"File {file_path.name} has no comment regions")
-                return results
+            # Process comments using the unified processor
+            file_results = await processor.process_comments(tag_processor, batch_size=50)
+            results.extend(file_results)
 
-            # Process comment regions in batches
-            batch_size = 50
-            file_tags = 0
-
-            log.debug(f"Processing {len(comment_regions)} comment regions in batches of {batch_size}")
-
-            for i in range(0, len(comment_regions), batch_size):
-                batch = comment_regions[i:i + batch_size]
-                log.debug(f"Processing batch {i//batch_size + 1} with {len(batch)} regions")
-
-                batch_tags = 0
-                for region in batch:
-                    # Split by newlines like CommentDecorationManager does
-                    for reg in file_view.split_by_newlines(region):
-                        line = file_view.substr(reg)
-                        line_num = file_view.rowcol(reg.begin())[0] + 1
-
-                        found = await self._process_comment_line(
-                            line, line_num, file_path, tag_filter, results
-                        )
-                        if found:
-                            file_tags += 1
-                            batch_tags += 1
-
-                log.debug(f"Batch {i//batch_size + 1} complete, found {batch_tags} tags")
-
-                # Yield control for large files
-                if i + batch_size < len(comment_regions):
-                    await asyncio.sleep(0.001)
-
-            if file_tags > 0:
-                log.debug(f"File {file_path.name} contains {file_tags} tags total")
+            if len(file_results) > 0:
+                log.debug(f"File {file_path.name} contains {len(file_results)} tags total")
             else:
                 log.debug(f"File {file_path.name} contains no matching tags")
 
@@ -573,17 +588,17 @@ class AsyncTagScanner:
 
         return results
 
-    async def _process_comment_line(self, line, line_num, file_path, tag_filter, results):
-        """Process a single comment line for tag matches (same logic as CommentDecorationManager)."""
+    async def _process_comment_line(self, line, line_num, file_path, tag_filter):
+        """Process a single comment line for tag matches (unified with CommentDecorationManager logic)."""
         stripped_line = line.strip()
         if not stripped_line:
-            return False
+            return None
 
         # Use the same matching pattern logic as CommentDecorationManager
         if not settings.get_matching_pattern().startswith(" "):
             line = stripped_line
 
-        found = False
+        results = []
         for tag_name, regex in settings.tag_regex.items():
             # Apply tag filter if specified
             if tag_filter and tag_name.lower() != tag_filter.lower():
@@ -607,10 +622,9 @@ class AsyncTagScanner:
                     'file': str(file_path),
                     'relative_path': relative_path
                 })
-                found = True
                 log.debug(f"Found {tag_name} tag in {file_path.name}:{line_num}: {stripped_line[:50]}...")
 
-        return found
+        return results if results else None
 
     def _should_skip_file(self, file_path):
         """Check if file should be skipped based on extension and path."""

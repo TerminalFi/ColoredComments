@@ -1,6 +1,6 @@
 {
     // Enable debug logging
-    "debug": true,
+    "debug": false,
     // Enables continued matching of the previous tag
     "continued_matching": true,
     // Character to continue matching on
