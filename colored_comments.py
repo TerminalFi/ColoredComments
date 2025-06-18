@@ -1,10 +1,11 @@
 import sublime
 import sublime_plugin
-import time
-import threading
-import functools
+import asyncio
 import os
 import re
+from pathlib import Path
+
+import sublime_aio
 
 from .plugin import logger as log
 from .lib.sublime_lib import ResourcePath
@@ -12,882 +13,697 @@ from .plugin.settings import load_settings, settings, unload_settings
 from .templates import SCHEME_TEMPLATE
 
 NAME = "Colored Comments"
-VERSION = "3.0.4"
+VERSION = "4.0.0"
 
 comment_selector = "comment - punctuation.definition.comment"
-
 KIND_SCHEME = (sublime.KIND_ID_VARIABLE, "s", "Scheme")
 DEFAULT_CS = 'Packages/Color Scheme - Default/Mariana.sublime-color-scheme'
 
 
-def debounce(f):
-    """Decorator that debounces a function call.
-    
-    The decorated function will only be executed after the specified delay
-    has passed without any new calls. If called again within the delay period,
-    the timer is reset.
-    
-    Args:
-        f: The function to debounce
-        
-    Returns:
-        The debounced function
-    """
-    timers = {}
-    
-    @functools.wraps(f)
-    def wrapped_func(self, *args, **kwargs):
-        # Get the instance's unique id (or create a default if not available)
-        key = getattr(self, 'view', self).id() if hasattr(self, 'view') else id(self)
-        
-        # Cancel previous timer if it exists
-        if key in timers and timers[key]:
-            timers[key].cancel()
-            
-        # Use the debounce_delay from settings
-        def call_function():
-            # Remove reference to timer to avoid memory leak
-            if key in timers:
-                del timers[key]
-            # Call the actual function via the main thread to avoid UI issues
-            sublime.set_timeout(lambda: f(self, *args, **kwargs), 0)
-            
-        # Create and store the new timer
-        timers[key] = threading.Timer(settings.debounce_delay / 1000.0, call_function)
-        timers[key].start()
-        
-    # Add a cleanup method to cancel any pending timers
-    def cleanup(obj):
-        key = getattr(obj, 'view', obj).id() if hasattr(obj, 'view') else id(obj)
-        if key in timers and timers[key]:
-            timers[key].cancel()
-            del timers[key]
-    
-    # Attach the cleanup method to the wrapped function
-    wrapped_func.cleanup = cleanup
-    
-    return wrapped_func
-
-
 class CommentDecorationManager:
-    """Manages the decoration of comments in a view."""
-    
+    """Manages the decoration of comments in a view with async support."""
+
     def __init__(self, view):
-        """Initialize with a Sublime Text view.
-        
-        Args:
-            view: The Sublime Text view to decorate
-        """
         self.view = view
         self._last_change_count = 0
-        self._last_region_row = -1  # Track the row of the last highlighted region
-        
+        self._last_region_row = -1
+        self._processing = False
+        log.debug(f"CommentDecorationManager created for view {view.id()}: {view.file_name()}")
+
     def should_process_view(self):
-        """Check if the view needs to be processed based on syntax settings.
-        
-        Returns:
-            bool: False if syntax is in disabled list, True otherwise
-        """
-        return self.view.settings().get("syntax") not in settings.disabled_syntax
-        
+        """Check if the view needs to be processed based on syntax settings."""
+        syntax = self.view.settings().get("syntax")
+        should_process = syntax not in settings.disabled_syntax
+        log.debug(f"View {self.view.id()} syntax check: {syntax}, should_process: {should_process}")
+        return should_process
+
     def needs_update(self):
-        """Check if view has changed since last processing.
-        
-        Returns:
-            bool: True if view has changed, False otherwise
-        """
+        """Check if view has changed since last processing."""
         current_change = self.view.change_count()
-        if current_change != self._last_change_count:
+        needs_update = current_change != self._last_change_count
+        if needs_update:
+            log.debug(f"View {self.view.id()} needs update: change_count {self._last_change_count} -> {current_change}")
             self._last_change_count = current_change
-            return True
-        return False
-        
+        else:
+            log.debug(f"View {self.view.id()} no update needed: change_count unchanged at {current_change}")
+        return needs_update
+
     def find_comment_regions(self):
-        """Find all comment regions in the view.
-        
-        Returns:
-            List of region objects representing comments
-        """
-        return self.view.find_by_selector(comment_selector)
-        
-    def is_adjacent_to_region(self, current_region, prev_region, view):
-        """Check if the current region is directly after the previous region.
-        
-        Args:
-            current_region: The current region to check
-            prev_region: The previous region to check against
-            view: The view containing the regions
-            
-        Returns:
-            bool: True if the regions are on adjacent lines
-        """
-        current_row, _ = view.rowcol(current_region.begin())
-        prev_row, _ = view.rowcol(prev_region.begin())
-        
-        # Check if this is the line immediately following the last highlighted line
-        return current_row == prev_row + 1
-    
+        """Find all comment regions in the view."""
+        regions = self.view.find_by_selector(comment_selector)
+        log.debug(f"View {self.view.id()} found {len(regions)} comment regions using selector: {comment_selector}")
+        return regions
+
     def process_comment_line(self, line, to_decorate, reg, prev_match):
-        """Process a single comment line and identify its tag.
-        
-        Args:
-            line: The line text to process
-            to_decorate: Dictionary to populate with regions
-            reg: The region representing this line
-            prev_match: The previous matched tag identifier
-            
-        Returns:
-            str: The matched tag identifier or empty string
-        """
-        # Skip empty lines
+        """Process a single comment line and identify its tag."""
         stripped_line = line.strip()
         if not stripped_line:
             return ""
-            
+
         if not settings.get_matching_pattern().startswith(" "):
             line = stripped_line
-        
-        # Check if this is adjacent to the last highlighted line
+
+        # Check adjacency for continuation
         is_adjacent = False
         if self._last_region_row != -1:
             current_row, _ = self.view.rowcol(reg.begin())
             is_adjacent = current_row == self._last_region_row + 1
-        
-        # Try to match a tag pattern first
+
+        # Try to match tag patterns first
         for identifier in settings.tag_regex:
             if settings.get_regex(identifier).search(line.strip()):
-                # Found a direct match
                 to_decorate.setdefault(identifier, []).append(reg)
-                # Update the last region row
                 self._last_region_row, _ = self.view.rowcol(reg.end())
+                log.debug(f"View {self.view.id()} matched tag '{identifier}' at line: {stripped_line[:50]}...")
                 return identifier
-                
-        # No direct match, check for continuation
+
+        # Check for continuation
         if prev_match and is_adjacent and (
-            # Standard continuation with pattern matching
             (settings.continued_matching and line.startswith(settings.get_matching_pattern())) or
-            # Auto-continue highlighting without requiring pattern match
             settings.auto_continue_highlight
         ):
             to_decorate.setdefault(prev_match, []).append(reg)
-            # Update the last region row
             self._last_region_row, _ = self.view.rowcol(reg.end())
+            log.debug(f"View {self.view.id()} continued tag '{prev_match}' at line: {stripped_line[:50]}...")
             return prev_match
-            
-        # No match found
-        return ""
-    
-    @debounce    
-    def apply_decorations(self):
-        """Find and apply decorations to comments in the view."""
-        if not self.should_process_view():
-            return
-            
-        if not self.needs_update():
-            return
-            
-        self.clear_decorations()  # Clear existing decorations first
-        
-        to_decorate = {}
-        prev_match = ""
-        self._last_region_row = -1  # Reset tracking for this run
-        
-        for region in self.find_comment_regions():
-            for reg in self.view.split_by_newlines(region):
-                line = self.view.substr(reg)
-                result = self.process_comment_line(line, to_decorate, reg, prev_match)
-                prev_match = result if result else prev_match  # Keep prev_match even if current line has no match
 
-        # Apply the decorations
-        self.apply_region_styles(to_decorate)
-        
+        return ""
+
     def apply_region_styles(self, to_decorate):
-        """Apply styles to the specified regions.
-        
-        Args:
-            to_decorate: Dictionary mapping tag identifiers to regions
-        """
-        for key in to_decorate:
-            tag = settings.tags.get(key)
-            self.view.add_regions(
-                key=key.lower(),
-                regions=to_decorate.get(key),
-                scope=settings.get_scope_for_region(key, tag),
-                icon=settings.get_icon(),
-                flags=settings.get_flags(tag),
-            )
-            
+        """Apply visual styles to decorated regions."""
+        total_regions = sum(len(regions) for regions in to_decorate.values())
+        log.debug(f"View {self.view.id()} applying styles to {total_regions} regions across {len(to_decorate)} tag types")
+
+        for identifier, regions in to_decorate.items():
+            if identifier in settings.tags:
+                tag = settings.tags[identifier]
+                scope = settings.get_scope_for_region(identifier, tag)
+                flags = settings.get_flags(tag)
+                icon = settings.get_icon()
+
+                log.debug(f"View {self.view.id()} applying {len(regions)} regions for tag '{identifier}' with scope '{scope}'")
+
+                self.view.add_regions(
+                    identifier.lower(),
+                    regions,
+                    scope,
+                    icon=icon,
+                    flags=flags
+                )
+
     def clear_decorations(self):
-        """Remove all comment decorations from the view."""
-        for region_key in settings.region_keys:
-            self.view.erase_regions(region_key)
-            
+        """Clear all existing decorations from the view."""
+        log.debug(f"View {self.view.id()} clearing decorations for keys: {settings.region_keys}")
+        for key in settings.region_keys:
+            self.view.erase_regions(key)
+
     def cleanup(self):
-        """Clean up resources when manager is no longer needed."""
-        # Call the cleanup method attached to the debounced function
-        self.apply_decorations.cleanup(self)
+        """Clean up resources when the manager is no longer needed."""
+        log.debug(f"CommentDecorationManager cleanup for view {self.view.id()}")
+        self.clear_decorations()
+
+    async def apply_decorations(self):
+        """Apply decorations asynchronously with batching."""
+        log.debug(f"View {self.view.id()} apply_decorations called, processing: {self._processing}")
+
+        if self._processing:
+            log.debug(f"View {self.view.id()} already processing, skipping")
+            return
+
+        if not self.should_process_view():
+            log.debug(f"View {self.view.id()} should not be processed, skipping")
+            return
+
+        self._processing = True
+        log.debug(f"View {self.view.id()} starting decoration process")
+
+        try:
+            # For initial load, always process even if change count is same
+            needs_update = self.needs_update()
+            has_existing_decorations = any(len(self.view.get_regions(key)) > 0 for key in settings.region_keys)
+
+            if not needs_update and has_existing_decorations:
+                log.debug(f"View {self.view.id()} no update needed and has existing decorations")
+                return
+
+            if not needs_update:
+                log.debug(f"View {self.view.id()} no change detected but no existing decorations, forcing update")
+
+            log.debug(f"View {self.view.id()} clearing existing decorations")
+            self.clear_decorations()
+
+            to_decorate = {}
+            prev_match = ""
+            self._last_region_row = -1
+
+            comment_regions = self.find_comment_regions()
+
+            if not comment_regions:
+                log.debug(f"View {self.view.id()} no comment regions found")
+                return
+
+            # Process in batches to maintain UI responsiveness
+            batch_size = 100
+            total_processed = 0
+
+            for i in range(0, len(comment_regions), batch_size):
+                batch = comment_regions[i:i + batch_size]
+                log.debug(f"View {self.view.id()} processing batch {i//batch_size + 1}, regions {i} to {i + len(batch)}")
+
+                batch_processed = 0
+                for region in batch:
+                    for reg in self.view.split_by_newlines(region):
+                        line = self.view.substr(reg)
+                        result = self.process_comment_line(line, to_decorate, reg, prev_match)
+                        prev_match = result if result else prev_match
+                        batch_processed += 1
+
+                total_processed += batch_processed
+                log.debug(f"View {self.view.id()} batch complete, processed {batch_processed} lines, total: {total_processed}")
+
+                # Yield control after each batch to keep UI responsive
+                if i + batch_size < len(comment_regions):
+                    await asyncio.sleep(0.001)
+
+            log.debug(f"View {self.view.id()} applying region styles")
+            self.apply_region_styles(to_decorate)
+            log.debug(f"View {self.view.id()} decoration process complete")
+
+        except Exception as e:
+            log.debug(f"Error in apply_decorations for view {self.view.id()}: {e}")
+            import traceback
+            log.debug(f"Traceback: {traceback.format_exc()}")
+        finally:
+            self._processing = False
+            log.debug(f"View {self.view.id()} decoration process finished, processing flag reset")
 
 
 class ColoredCommentsEditSchemeCommand(sublime_plugin.WindowCommand):
-    """Command to edit the color scheme for Colored Comments."""
+    """Command to edit the color scheme for colored comments."""
 
     def run(self):
+        log.debug("ColoredCommentsEditSchemeCommand.run() called")
         view = self.window.active_view()
-        if not view:
-            return
+        current_scheme = self.get_scheme_path(view, "color_scheme")
 
-        scheme_path = self.get_scheme_path(view, 'color_scheme')
-        if scheme_path != 'auto':
-            self.open_scheme(scheme_path)
-        else:
-            paths = [
-                (setting, self.get_scheme_path(view, setting))
-                for setting in ('dark_color_scheme', 'light_color_scheme')
+        if not current_scheme:
+            current_scheme = DEFAULT_CS
+
+        scheme_list = [
+            [
+                'Edit Current: ' + current_scheme.split('/')[-1],
+                current_scheme,
+                current_scheme
             ]
-            choices = [
-                sublime.QuickPanelItem(
-                    setting, details=str(path), kind=KIND_SCHEME)
-                for setting, path in paths
-            ]
+        ]
 
-            def on_done(i):
-                if i >= 0:
-                    self.open_scheme(paths[i][1])
+        resources = sublime.find_resources("*.sublime-color-scheme")
+        resources.extend(sublime.find_resources("*.tmTheme"))
 
-            self.window.show_quick_panel(choices, on_done)
+        for resource in resources:
+            scheme_list.append([
+                resource.split('/')[-1],
+                resource,
+                resource
+            ])
+
+        def on_done(i):
+            if i >= 0:
+                log.debug(f"Opening scheme: {scheme_list[i][2]}")
+                self.open_scheme(scheme_list[i][2])
+
+        self.window.show_quick_panel(scheme_list, on_done)
 
     @staticmethod
     def get_scheme_path(view, setting_name):
-        """Get the path to the color scheme file.
-        
-        Args:
-            view: The view to get settings from
-            setting_name: The name of the setting to retrieve
-            
-        Returns:
-            ResourcePath or 'auto'
-        """
-        scheme_setting = view.settings().get(setting_name, DEFAULT_CS)
-        if scheme_setting == 'auto':
-            return 'auto'
-        elif "/" not in scheme_setting:
-            return ResourcePath.glob_resources(scheme_setting)[0]
-        else:
-            return ResourcePath(scheme_setting)
+        scheme = None
+        if view:
+            scheme = view.settings().get(setting_name)
+        if not scheme:
+            scheme = sublime.load_settings("Preferences.sublime-settings").get(setting_name)
+        if scheme and not scheme.startswith('Packages/'):
+            if scheme.find('/') != -1:
+                scheme = '/'.join(['Packages'] + scheme.split('/')[1:])
+        return scheme
 
     def open_scheme(self, scheme_path):
-        """Open the color scheme file for editing.
-        
-        Args:
-            scheme_path: Path to the scheme to edit
-        """
-        self.window.run_command(
-            'edit_settings',
-            {
-                'base_file': '/'.join(("${packages}",) + scheme_path.parts[1:]),
-                'user_file': "${packages}/User/" + scheme_path.stem + '.sublime-color-scheme',
-                'default': SCHEME_TEMPLATE,
-            },
-        )
+        try:
+            resource = ResourcePath.from_file_path(scheme_path)
+            new_view = self.window.open_file(str(resource))
+
+            def check_loaded():
+                if new_view.is_loading():
+                    sublime.set_timeout(check_loaded, 50)
+                else:
+                    self.inject_scheme_template(new_view)
+
+            check_loaded()
+        except Exception as e:
+            log.debug(f"Error opening scheme: {e}")
+
+    def inject_scheme_template(self, view):
+        content = view.substr(sublime.Region(0, view.size()))
+        if "comments.important" not in content:
+            insertion_point = view.size()
+            if content.strip().endswith('}'):
+                lines = content.split('\n')
+                for i in range(len(lines) - 1, -1, -1):
+                    if '}' in lines[i]:
+                        insertion_point = sum(len(line) + 1 for line in lines[:i])
+                        break
+
+            view.run_command('insert', {
+                'characters': '\n' + SCHEME_TEMPLATE.rstrip() + '\n'
+            })
 
 
-class ColoredCommentsEventListener(sublime_plugin.EventListener):
-    """Event listener for triggering comment decoration."""
-    
-    def __init__(self):
-        """Initialize event listener with dictionary to track views."""
-        self.managers = {}
-    
-    def get_manager(self, view):
-        """Get or create a decoration manager for a view.
-        
-        Args:
-            view: The view to get a manager for
-            
-        Returns:
-            CommentDecorationManager: The manager for the view
-        """
-        view_id = view.id()
-        if view_id not in self.managers:
-            self.managers[view_id] = CommentDecorationManager(view)
-        return self.managers[view_id]
-    
-    def on_init(self, views):
-        """Handle view initialization.
-        
-        Args:
-            views: List of views being initialized
-        """
-        for view in views:
-            if view.window() is not None:
-                manager = self.get_manager(view)
-                manager.apply_decorations()  # Apply immediately on init
+class ColoredCommentsEventListener(sublime_aio.ViewEventListener):
+    """Async event listener using sublime_aio for optimal performance."""
 
-    def on_load_async(self, view):
-        """Handle view loading.
-        
-        Args:
-            view: The view being loaded
-        """
-        if view.window() is not None:
-            manager = self.get_manager(view)
-            manager.apply_decorations()  # Apply with debounce
+    def __init__(self, view):
+        super().__init__(view)
+        self.manager = CommentDecorationManager(view)
+        log.debug(f"ColoredCommentsEventListener created for view {view.id()}: {view.file_name()}")
 
-    def on_modified_async(self, view):
-        """Handle view modifications.
-        
-        Args:
-            view: The view being modified
-        """
-        if view.window() is not None:
-            manager = self.get_manager(view)
-            manager.apply_decorations()  # Apply with debounce
-            
-    def on_close(self, view):
-        """Clean up when a view is closed.
-        
-        Args:
-            view: The view being closed
-        """
-        view_id = view.id()
-        if view_id in self.managers:
-            self.managers[view_id].cleanup()  # Clean up resources
-            del self.managers[view_id]
+    @sublime_aio.debounced(settings.debounce_delay)
+    async def on_modified(self):
+        """Handle view modifications without debouncing (for testing)."""
+        log.debug(f"*** ON_MODIFIED EVENT FIRED for view {self.view.id()} ***")
+        log.debug(f"ColoredCommentsEventListener.on_modified() called for view {self.view.id()}")
 
-
-class ColoredCommentsCommand(sublime_plugin.WindowCommand):
-    """Command to apply comment decorations."""
-    
-    def run(self, vid=None):
-        view = self.window.active_view() if vid is None else sublime.View(vid)
-        decorator = CommentDecorationManager(view)
-        decorator.apply_decorations()
-
-
-class ColoredCommentsClearCommand(sublime_plugin.WindowCommand):
-    """Command to clear comment decorations."""
-    
-    def run(self, vid=None):
-        view = self.window.active_view() if vid is None else sublime.View(vid)
-        decorator = CommentDecorationManager(view)
-        decorator.clear_decorations()
-
-
-class ColoredCommentsListTagsCommand(sublime_plugin.WindowCommand):
-    """Command to list all colored comment tags found in the project.
-
-    This command finds and displays all colored comment tags in an output panel,
-    showing their context, filename, and location.
-    """
-
-    def run(self, tag_filter=None, current_file_only=False):
-        """Run the command to list all tags.
-
-        Args:
-            tag_filter: Optional filter to show only specific tags (e.g., "TODO")
-            current_file_only: If True, only scan the current file
-        """
-        self.window.status_message("Searching for colored comments...")
-        self.tag_filter = tag_filter
-        self.current_file_only = current_file_only
-
-        # Run the search in a separate thread to avoid UI blocking
-        threading.Thread(target=self._find_tags).start()
-
-    def is_adjacent_to_region(self, current_region, prev_region, view):
-        """Check if the current region is directly after the previous region.
-        
-        Args:
-            current_region: The current region to check
-            prev_region: The previous region to check against
-            view: The view containing the regions
-            
-        Returns:
-            bool: True if the regions are on adjacent lines
-        """
-        current_row, _ = view.rowcol(current_region.begin())
-        prev_row, _ = view.rowcol(prev_region.begin())
-        
-        # Check if this is the line immediately following the last highlighted line
-        return current_row == prev_row + 1
-
-    def _find_tags(self):
-        """Find all tags in the project files by applying decorations to temporary views."""
-        results = []
-        files_to_scan = self._get_files_to_scan()
-        processed_count = 0
-        total_files = len(files_to_scan)
-
-        # Update status periodically
-        def update_status():
-            self.window.status_message(f"Searching for colored comments... ({processed_count}/{total_files})")
-
-        # Process each file
-        for file_path in files_to_scan:
-            try:
-                # Update status every 10 files
-                processed_count += 1
-                if processed_count % 10 == 0:
-                    sublime.set_timeout(update_status, 0)
-
-                # Load file content
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-
-                # Create a temporary view with the file content
-                temp_view = self.window.create_output_panel('_colored_comments_temp_view')
-                temp_view.run_command('append', {'characters': content})
-
-                # Set the proper syntax
-                self._set_view_syntax(temp_view, file_path)
-
-                # Create a decoration manager for this view
-                decorator = CommentDecorationManager(temp_view)
-
-                # Apply the decorations (without debounce)
-                self._apply_decorations_direct(decorator)
-
-                # Extract the decorated regions
-                file_results = self._extract_tag_regions(temp_view, file_path)
-                results.extend(file_results)
-
-                # Close the temporary view
-                self.window.destroy_output_panel('_colored_comments_temp_view')
-
-            except Exception as e:
-                log.debug(f"Error processing {file_path}: {str(e)}")
-
-        # Sort results by tag type then filename
-        results.sort(key=lambda x: (x['tag'], x['file'], x['line']))
-
-        # Update UI in main thread
-        sublime.set_timeout(lambda: self._show_results(results), 0)
-
-    def _get_files_to_scan(self):
-        """Get a list of files to scan based on settings.
-
-        Returns:
-            list: List of file paths to scan
-        """
-        files_to_scan = []
-
-        # If current file only, just return the active file
-        if self.current_file_only:
-            active_view = self.window.active_view()
-            if active_view and active_view.file_name():
-                return [active_view.file_name()]
-            else:
-                return []
-
-        # Otherwise scan all files in project
-        folders = self.window.folders()
-
-        # If no project folders, use the directory of the active file
-        if not folders and self.window.active_view():
-            file_name = self.window.active_view().file_name()
-            if file_name:
-                folders = [os.path.dirname(file_name)]
-
-        # If still no folders, can't proceed
-        if not folders:
-            return []
-
-        # Walk the directory tree to collect files
-        for folder in folders:
-            for root, _, files in os.walk(folder):
-                for file in files:
-                    # Skip binary files, hidden files, and files we usually don't want to search
-                    if self._should_skip_file(file):
-                        continue
-
-                    file_path = os.path.join(root, file)
-                    files_to_scan.append(file_path)
-
-        return files_to_scan
-
-    def _should_skip_file(self, file_name):
-        """Check if a file should be skipped during search.
-
-        Args:
-            file_name: The name of the file to check
-
-        Returns:
-            bool: True if the file should be skipped, False otherwise
-        """
-        # Skip hidden files
-        if file_name.startswith('.'):
-            return True
-
-        # Skip common binary files and non-text files
-        exclude_extensions = [
-            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.pdf',
-            '.zip', '.tar', '.gz', '.rar', '.7z',
-            '.pyc', '.pyo', '.exe', '.dll', '.obj', '.o',
-            '.a', '.lib', '.so', '.dylib', '.ncb', '.sdf', '.suo',
-            '.pdb', '.idb', '.ds_store'
-        ]
-
-        return any(file_name.lower().endswith(ext) for ext in exclude_extensions)
-
-    def _set_view_syntax(self, view, file_path):
-        """Set the correct syntax for the view based on file path.
-
-        Args:
-            view: The view to set syntax for
-            file_path: The path of the file
-        """
-        # Use Sublime's built-in syntax detection
-        syntax = sublime.find_syntax_for_file(file_path)
-        if syntax:
-            view.assign_syntax(syntax.path)
-
-    def _apply_decorations_direct(self, decorator):
-        """Apply decorations directly without debouncing.
-
-        Args:
-            decorator: The CommentDecorationManager instance
-        """
-        # Ensure we're not in a disabled syntax
-        if not decorator.should_process_view():
+        if self.view.settings().get("syntax") in settings.disabled_syntax:
+            log.debug(f"View {self.view.id()} syntax disabled, skipping")
             return
 
-        # Reset any existing decorations
-        decorator.clear_decorations()
+        log.debug(f"View {self.view.id()} triggering decoration update from on_modified")
+        await self.manager.apply_decorations()
 
-        # We need to force the original method to process the view regardless of change count
-        # Save the original state
-        last_change_count = decorator._last_change_count
+    async def on_load(self):
+        """Handle view loading."""
+        log.debug(f"*** ON_LOAD EVENT FIRED for view {self.view.id()} ***")
+        log.debug(f"ColoredCommentsEventListener.on_load() called for view {self.view.id()}: {self.view.file_name()}")
 
-        # Force processing by setting change count to 0
-        decorator._last_change_count = 0
+        if self.view.settings().get("syntax") in settings.disabled_syntax:
+            log.debug(f"View {self.view.id()} syntax disabled, skipping")
+            return
 
-        # Enable extra verbose debugging for this call
-        original_debug = settings.debug
-        settings.debug = True
-        log.debug("=== ENABLING EXTRA VERBOSE DEBUGGING FOR DECORATION PROCESSING ===")
+        log.debug(f"View {self.view.id()} triggering decoration on load")
+        await self.manager.apply_decorations()
 
-        # Access the original method without going through the debounce wrapper
-        original_method = decorator.apply_decorations.__wrapped__
-        original_method(decorator)
+    async def on_activated(self):
+        """Handle view activation."""
+        log.debug(f"*** ON_ACTIVATED EVENT FIRED for view {self.view.id()} ***")
+        log.debug(f"ColoredCommentsEventListener.on_activated() called for view {self.view.id()}: {self.view.file_name()}")
 
-        # Restore debug setting
-        settings.debug = original_debug
+        if self.view.settings().get("syntax") in settings.disabled_syntax:
+            log.debug(f"View {self.view.id()} syntax disabled, skipping")
+            return
 
-        # Restore the original state
-        decorator._last_change_count = last_change_count
+        log.debug(f"View {self.view.id()} triggering decoration on activation")
+        await self.manager.apply_decorations()
 
-        # Log all regions immediately after decoration
-        view = decorator.view
-        log.debug("=== REGION INSPECTION AFTER DECORATION ===")
-        for region_key in settings.region_keys:
-            regions = view.get_regions(region_key)
-            log.debug(f"Tag '{region_key}' has {len(regions)} regions:")
-            for i, region in enumerate(regions):
-                row, col = view.rowcol(region.begin())
-                content = view.substr(region).strip()
-                log.debug(f"  Region {i}: Line {row+1}, Pos {region.begin()}-{region.end()}, Content: '{content[:30]}...' if len(content) > 30 else content")
+    def on_close(self):
+        """Handle view closing - synchronous cleanup."""
+        log.debug(f"ColoredCommentsEventListener.on_close() called for view {self.view.id()}")
+        self.manager.cleanup()
 
-                # Log the full text and character positions for this region
-                if i > 0:
-                    prev_region = regions[i-1]
-                    gap = region.begin() - prev_region.end()
-                    prev_row, _ = view.rowcol(prev_region.begin())
-                    log.debug(f"    Gap from previous region: {gap} chars, {row-prev_row} lines")
 
-                    # If gap is 1 char but more than 0 lines, something's wrong
-                    if gap <= 1 and row > prev_row:
-                        log.debug(f"    POTENTIAL ISSUE: Small char gap but line break detected")
-                        # Dump the actual text between the regions
-                        between_text = view.substr(sublime.Region(prev_region.end(), region.begin()))
-                        log.debug(f"    Text between regions: '{repr(between_text)}'")
+class ColoredCommentsCommand(sublime_aio.ViewCommand):
+    """Command to manually trigger comment decoration."""
 
-    def _extract_tag_regions(self, view, file_path):
-        """Extract tagged regions from a view.
+    async def run(self):
+        """Apply comment decorations to the current view."""
+        log.debug(f"ColoredCommentsCommand.run() called for view {self.view.id()}")
+        manager = CommentDecorationManager(self.view)
 
-        Args:
-            view: The view with decorations applied
-            file_path: The path of the file
+        if not manager.should_process_view():
+            log.debug(f"View {self.view.id()} type not supported for colored comments")
+            sublime.status_message("View type not supported for colored comments")
+            return
 
-        Returns:
-            list: List of tag data dictionaries
-        """
+        # Force an update by resetting the change count
+        manager._last_change_count = 0
+        log.debug(f"View {self.view.id()} forcing decoration update")
+        await manager.apply_decorations()
+        sublime.status_message("Comment decorations applied")
+
+
+class ColoredCommentsClearCommand(sublime_plugin.TextCommand):
+    """Command to clear all comment decorations."""
+
+    def run(self, edit):
+        log.debug(f"ColoredCommentsClearCommand.run() called for view {self.view.id()}")
+        view = self.view
+        manager = CommentDecorationManager(view)
+        manager.clear_decorations()
+        sublime.status_message("Comment decorations cleared")
+
+
+class AsyncTagScanner:
+    """Async tag scanner for efficient project-wide scanning."""
+
+    def __init__(self, window):
+        self.window = window
+        log.debug(f"AsyncTagScanner created for window {window.id()}")
+
+    async def scan_for_tags(self, tag_filter=None, current_file_only=False):
+        """Scan for tags in project files asynchronously."""
+        log.debug(f"AsyncTagScanner.scan_for_tags() called, tag_filter: {tag_filter}, current_file_only: {current_file_only}")
         results = []
-        relative_path = os.path.relpath(file_path, self.window.folders()[0]) if self.window.folders() else file_path
+        files = await self._get_files_to_scan(current_file_only)
 
-        log.debug(f"Extracting tag regions from {file_path}")
+        if not files:
+            log.debug("No files to scan")
+            return results
 
-        # Debug view properties
-        log.debug(f"View settings: syntax={view.settings().get('syntax')}")
-        log.debug(f"Matching pattern: '{settings.get_matching_pattern()}'")
-        log.debug(f"Auto-continue: {settings.auto_continue_highlight}")
-        log.debug(f"Continued matching: {settings.continued_matching}")
+        total_files = len(files)
+        log.debug(f"Scanning {total_files} files for tags")
 
-        # Check if view has content
-        content_size = view.size()
-        log.debug(f"View content size: {content_size} chars")
-        if content_size > 0:
-            sample = view.substr(sublime.Region(0, min(100, content_size)))
-            log.debug(f"Content sample: '{sample}'")
+        # Process files in batches for better progress reporting
+        batch_size = 10
+        for i in range(0, total_files, batch_size):
+            batch = files[i:i + batch_size]
+            log.debug(f"Processing batch {i//batch_size + 1}, files {i} to {i + len(batch)}")
 
-        # Process each tag type
-        for region_key in settings.region_keys:
-            # Skip if tag_filter is specified and doesn't match
-            if self.tag_filter and region_key.lower() != self.tag_filter.lower():
-                continue
+            # Process batch concurrently
+            batch_tasks = [
+                self._scan_file(file_path, tag_filter)
+                for file_path in batch
+            ]
 
-            # Find the tag name from the region key
-            tag_name = next((name for name in settings.tags.keys()
-                           if name.lower() == region_key), region_key.upper())
+            batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
-            # Get all regions for this tag and sort by line number
-            regions = view.get_regions(region_key)
-            if not regions:
-                log.debug(f"  No regions found for tag '{tag_name}'")
-                continue
+            # Collect results, filtering out exceptions
+            batch_found = 0
+            for result in batch_results:
+                if isinstance(result, list):
+                    results.extend(result)
+                    batch_found += len(result)
+                elif isinstance(result, Exception):
+                    log.debug(f"Error in batch processing: {result}")
 
-            # Sort regions by position
-            regions.sort(key=lambda r: r.begin())
-            log.debug(f"  Found {len(regions)} regions for tag '{tag_name}'")
+            log.debug(f"Batch complete, found {batch_found} tags in this batch")
 
-            # Dump raw region data
-            log.debug(f"  Raw regions: {regions}")
+            # Update progress
+            progress = min(100, int(((i + batch_size) / total_files) * 100))
+            sublime.status_message(f"Scanning tags... {progress}% ({len(results)} found)")
 
-            # Process regions in order - group by original tag first
-            current_regions = []
+            # Yield control to keep UI responsive
+            await asyncio.sleep(0.01)
 
-            # First, collect regions into groups
-            for region in regions:
-                row, col = view.rowcol(region.begin())
-                content = view.substr(region).strip()
-
-                # Check if this is the start of a new comment group
-                is_new_group = True
-
-                # If we have a current group, check if this is a continuation
-                if current_regions:
-                    prev_region = current_regions[-1]
-
-                    # Check if regions are on adjacent lines
-                    if self.is_adjacent_to_region(region, prev_region, view):
-                        log.debug(f"  Found adjacent region at line {row+1}")
-                        # Check if auto-continue is enabled
-                        if settings.auto_continue_highlight:
-                            log.debug(f"  Auto-continue is enabled, continuing group")
-                            # Consider it a continuation
-                            is_new_group = False
-                        # Check if it starts with the continuation pattern
-                        elif settings.continued_matching:
-                            # For Python comments, need to handle the comment marker
-                            # Look at actual content including comment marker
-                            line_text = view.substr(view.line(region.begin()))
-                            line_text = line_text.lstrip()  # Remove leading whitespace
-
-                            log.debug(f"  Checking line text: '{line_text}'")
-
-                            # Skip comment marker if present - remove Python and JavaScript/C-style comment markers
-                            if line_text.startswith('#'):
-                                line_text = line_text[1:].lstrip()
-                            elif line_text.startswith('//'):
-                                line_text = line_text[2:].lstrip()
-                            elif line_text.startswith('/*'):
-                                line_text = line_text[2:].lstrip()
-
-                            log.debug(f"  After removing comment marker: '{line_text}'")
-
-                            # Now check if it starts with the continuation pattern
-                            if line_text.startswith(settings.get_matching_pattern()):
-                                log.debug(f"  Found continuation pattern, continuing group")
-                                # Consider it a continuation
-                                is_new_group = False
-
-                # If this is a new group, start a new collection
-                if is_new_group:
-                    log.debug(f"  Starting new region group at line {row+1}")
-                    # If we have a previous group, process it
-                    if current_regions:
-                        self._add_tag_entry(view, current_regions, tag_name, relative_path, results)
-                    # Start new group
-                    current_regions = [region]
-                else:
-                    # Add to the current group
-                    current_regions.append(region)
-
-            # Process the last group if we have one
-            if current_regions:
-                self._add_tag_entry(view, current_regions, tag_name, relative_path, results)
-
-        log.debug(f"Extracted {len(results)} total tag entries from {file_path}")
+        log.debug(f"Tag scanning complete, found {len(results)} total tags")
         return results
 
-    def _add_tag_entry(self, view, regions, tag_name, relative_path, results):
-        """Add a tag entry from a group of regions.
+    async def _get_files_to_scan(self, current_file_only):
+        """Get list of files to scan asynchronously."""
+        if current_file_only:
+            view = self.window.active_view()
+            if view and view.file_name():
+                log.debug(f"Scanning current file only: {view.file_name()}")
+                return [Path(view.file_name())]
+            log.debug("No current file to scan")
+            return []
 
-        Args:
-            view: The Sublime Text view
-            regions: List of regions for this tag group
-            tag_name: The name of the tag
-            relative_path: Relative path to the file
-            results: Results list to append to
-        """
-        if not regions:
-            return
+        files = []
+        folders = self.window.folders()
 
-        # Get info from the first region
-        first_region = regions[0]
-        row, col = view.rowcol(first_region.begin())
+        if not folders:
+            log.debug("No project folders found")
+            return files
 
-        # Collect all content
-        content_lines = []
-        for region in regions:
-            line_content = view.substr(region).strip()
+        log.debug(f"Scanning {len(folders)} project folders")
 
-            # For continuation lines, we might want to strip the pattern
-            if len(content_lines) > 0 and settings.continued_matching:
-                # Get the raw line
-                line_text = view.substr(view.line(region.begin()))
-                line_text = line_text.lstrip()  # Remove leading whitespace
+        # Collect files from all project folders
+        for folder in folders:
+            folder_path = Path(folder)
+            log.debug(f"Scanning folder: {folder_path}")
+            try:
+                folder_files = await self._scan_directory(folder_path)
+                files.extend(folder_files)
+                log.debug(f"Found {len(folder_files)} files in {folder_path}")
+            except Exception as e:
+                log.debug(f"Error scanning folder {folder_path}: {e}")
 
-                # Skip comment marker if present
-                if line_text.startswith('#'):
-                    line_text = line_text[1:].lstrip()
-                elif line_text.startswith('//'):
-                    line_text = line_text[2:].lstrip()
-                elif line_text.startswith('/*'):
-                    line_text = line_text[2:].lstrip()
+        log.debug(f"Total files to scan: {len(files)}")
+        return files
 
-                # Remove continuation pattern if present
-                pattern = settings.get_matching_pattern()
-                if line_text.startswith(pattern):
-                    # Remove pattern from the beginning
-                    line_content = line_text[len(pattern):].strip()
+    async def _scan_directory(self, directory):
+        """Scan directory for relevant files asynchronously."""
+        files = []
+        try:
+            # Use rglob for recursive scanning
+            all_files = list(directory.rglob('*'))
+            log.debug(f"Directory {directory} contains {len(all_files)} total items")
 
-            content_lines.append(line_content)
+            # Filter files in batches to avoid blocking
+            batch_size = 500
+            for i in range(0, len(all_files), batch_size):
+                batch = all_files[i:i + batch_size]
 
-        # Add the tag entry
-        results.append({
-            'tag': tag_name,
-            'file': relative_path,
-            'line': row + 1,  # 1-based line number
-            'column': col + 1,  # 1-based column
-            'content': content_lines
-        })
+                batch_files = 0
+                for file_path in batch:
+                    if (file_path.is_file() and
+                        not self._should_skip_file(file_path) and
+                        self._is_text_file(file_path)):
+                        files.append(file_path)
+                        batch_files += 1
+
+                log.debug(f"Directory batch {i//batch_size + 1}: {batch_files} valid files found")
+
+                # Yield control periodically
+                if i + batch_size < len(all_files):
+                    await asyncio.sleep(0.001)
+
+        except (OSError, PermissionError) as e:
+            log.debug(f"Error accessing directory {directory}: {e}")
+
+        return files
+
+    async def _scan_file(self, file_path, tag_filter):
+        """Scan a single file for comment tags."""
+        results = []
+
+        try:
+            # Read file with proper encoding handling
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+
+            log.debug(f"Scanning file {file_path} with {len(lines)} lines")
+
+            # Process lines in batches for large files
+            batch_size = 200
+            file_tags = 0
+            for i in range(0, len(lines), batch_size):
+                batch_lines = lines[i:i + batch_size]
+
+                for line_offset, line in enumerate(batch_lines):
+                    line_num = i + line_offset + 1
+                    found = await self._process_line(line, line_num, file_path, tag_filter, results)
+                    if found:
+                        file_tags += 1
+
+                # Yield control for large files
+                if i + batch_size < len(lines):
+                    await asyncio.sleep(0.001)
+
+            if file_tags > 0:
+                log.debug(f"File {file_path.name} contains {file_tags} tags")
+
+        except Exception as e:
+            log.debug(f"Error scanning file {file_path}: {e}")
+
+        return results
+
+    async def _process_line(self, line, line_num, file_path, tag_filter, results):
+        """Process a single line for tag matches."""
+        stripped_line = line.strip()
+        if not stripped_line:
+            return False
+
+        found = False
+        for tag_name, regex in settings.tag_regex.items():
+            # Apply tag filter if specified
+            if tag_filter and tag_name.lower() != tag_filter.lower():
+                continue
+
+            if regex.search(stripped_line):
+                # Calculate relative path for display
+                try:
+                    if self.window.folders():
+                        relative_path = str(file_path.relative_to(Path(self.window.folders()[0])))
+                    else:
+                        relative_path = file_path.name
+                except ValueError:
+                    relative_path = file_path.name
+
+                results.append({
+                    'tag': tag_name,
+                    'line': stripped_line,
+                    'line_num': line_num,
+                    'file': str(file_path),
+                    'relative_path': relative_path
+                })
+                found = True
+
+        return found
+
+    def _should_skip_file(self, file_path):
+        """Check if file should be skipped based on extension and path."""
+        # Skip binary file extensions
+        skip_extensions = {
+            '.pyc', '.pyo', '.class', '.o', '.obj', '.exe', '.dll', '.so', '.dylib',
+            '.jar', '.war', '.ear', '.zip', '.tar', '.gz', '.bz2', '.7z',
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.svg',
+            '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm',
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'
+        }
+
+        # Skip certain directories
+        skip_dirs = {
+            '__pycache__', '.git', '.svn', '.hg', 'node_modules',
+            '.vscode', '.idea', '.vs', 'bin', 'obj', 'build', 'dist'
+        }
+
+        # Check extension
+        if file_path.suffix.lower() in skip_extensions:
+            return True
+
+        # Check if any part of the path contains skip directories
+        for part in file_path.parts:
+            if part in skip_dirs:
+                return True
+
+        return False
+
+    def _is_text_file(self, file_path):
+        """Check if file is likely a text file."""
+        # Known text file extensions
+        text_extensions = {
+            '.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.yaml', '.yml',
+            '.md', '.rst', '.c', '.cpp', '.h', '.hpp', '.java', '.cs', '.php',
+            '.rb', '.go', '.rs', '.swift', '.kt', '.scala', '.sh', '.bat',
+            '.sql', '.r', '.m', '.pl', '.lua', '.vim', '.el', '.clj', '.hs'
+        }
+
+        if file_path.suffix.lower() in text_extensions:
+            return True
+
+        # For files without extension, try to detect if they're text
+        if not file_path.suffix:
+            try:
+                with open(file_path, 'rb') as f:
+                    chunk = f.read(512)
+                    # Simple heuristic: if it contains mostly printable ASCII, it's probably text
+                    text_chars = sum(1 for byte in chunk if 32 <= byte <= 126 or byte in (9, 10, 13))
+                    return text_chars / len(chunk) > 0.7 if chunk else False
+            except:
+                return False
+
+        return False
+
+
+class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
+    """Async command to list all comment tags in the project."""
+
+    async def run(self, tag_filter=None, current_file_only=False):
+        """Run the tag listing command asynchronously."""
+        log.debug(f"ColoredCommentsListTagsCommand.run() called, tag_filter: {tag_filter}, current_file_only: {current_file_only}")
+        scanner = AsyncTagScanner(self.window)
+
+        sublime.status_message("Scanning for comment tags...")
+        results = await scanner.scan_for_tags(tag_filter, current_file_only)
+
+        if results:
+            log.debug(f"Showing {len(results)} tag results")
+            self._show_results(results)
+            sublime.status_message(f"Found {len(results)} comment tags")
+        else:
+            log.debug("No comment tags found")
+            sublime.status_message("No comment tags found")
+            sublime.message_dialog("No comment tags found in the current scope.")
 
     def _show_results(self, results):
-        """Show the search results in a quick panel.
+        """Show results in a quick panel with navigation."""
+        panel_items = []
+        for result in results:
+            # Truncate long lines for better display
+            tag_line = result['line'].strip()[:80]
+            if len(result['line'].strip()) > 80:
+                tag_line += "..."
 
-        Args:
-            results: List of tags found
-        """
-        if not results:
-            self.window.status_message("No colored comments found")
-            return
+            panel_items.append([
+                f"[{result['tag']}] {tag_line}",
+                f"{result['relative_path']}:{result['line_num']}"
+            ])
 
-        # Create output panel
-        panel = self.window.create_output_panel('colored_comments_tags')
-        panel.set_read_only(False)
-        panel.run_command('erase_view')
+        def on_done(index):
+            if index >= 0:
+                result = results[index]
+                log.debug(f"Opening file at {result['file']}:{result['line_num']}")
+                # Open file at specific line
+                self.window.open_file(
+                    f"{result['file']}:{result['line_num']}",
+                    sublime.ENCODED_POSITION
+                )
 
-        # Group results by tag type for better organization
-        tags_by_type = {}
-        for item in results:
-            tag_type = item['tag']
-            if tag_type not in tags_by_type:
-                tags_by_type[tag_type] = []
-            tags_by_type[tag_type].append(item)
-
-        # Format and insert results
-        for tag_type in sorted(tags_by_type.keys()):
-            # Add a header for each tag type
-            panel.run_command('append', {'characters': f"\n=== {tag_type} ({len(tags_by_type[tag_type])}) ===\n\n"})
-
-            for item in tags_by_type[tag_type]:
-                # Format the header line with file, line, column
-                header = f"{item['file']}:{item['line']}:{item['column']}"
-
-                # Format the content lines with indentation
-                if item['content']:
-                    content = '\n    '.join(item['content'])
-                    # Insert into panel
-                    panel.run_command('append', {'characters': f"{header}\n    {content}\n\n"})
-                else:
-                    # In case of empty content, still show the file reference
-                    panel.run_command('append', {'characters': f"{header}\n    (no content)\n\n"})
-
-        panel.set_read_only(True)
-
-        # Setup panel for navigation
-        self._setup_navigation(panel)
-
-        # Show the panel
-        self.window.run_command('show_panel', {'panel': 'output.colored_comments_tags'})
-        total_tags = sum(len(items) for items in tags_by_type.values())
-        self.window.status_message(f"Found {total_tags} colored comments across {len(tags_by_type)} tag types")
-
-    def _setup_navigation(self, panel):
-        """Set up the panel for file navigation.
-
-        Args:
-            panel: The output panel to configure
-        """
-        # Set syntax for better readability
-        panel.assign_syntax('Packages/Text/Plain text.tmLanguage')
-
-        # Set up click handling for navigation
-        settings = panel.settings()
-        settings.set('result_file_regex', r'^(.+):(\d+):(\d+)')
-        settings.set('result_base_dir', self.window.folders()[0] if self.window.folders() else '')
-
-        # Enable line wrapping for readability
-        settings.set('word_wrap', True)
+        self.window.show_quick_panel(panel_items, on_done)
 
 
 class ColoredCommentsToggleDebugCommand(sublime_plugin.WindowCommand):
     """Command to toggle debug logging."""
 
     def run(self):
-        """Toggle debug logging on/off."""
-        # Toggle the debug setting
-        new_debug_state = not settings.debug
+        log.debug("ColoredCommentsToggleDebugCommand.run() called")
+        current_debug = settings.debug
+        new_debug = not current_debug
+
+        # Update the setting
         settings_obj = sublime.load_settings("colored_comments.sublime-settings")
-        settings_obj.set("debug", new_debug_state)
+        settings_obj.set("debug", new_debug)
         sublime.save_settings("colored_comments.sublime-settings")
 
-        # Update the runtime setting
-        settings.debug = new_debug_state
-        log.set_debug_logging(settings.debug)
+        # Update logger
+        log.set_debug_logging(new_debug)
 
-        # Show message
-        state = "ON" if new_debug_state else "OFF"
-        self.window.status_message(f"Colored Comments: Debug logging turned {state}")
-
-        # If debug was turned on, show where to find logs
-        if new_debug_state:
-            # Show a quick panel with instructions
-            self.window.show_quick_panel(
-                ["Debug logging enabled",
-                 "Check Sublime console for logs (View > Show Console)",
-                 "Run the tag list command to see debug output"],
-                lambda _: None,
-                sublime.KEEP_OPEN_ON_FOCUS_LOST,
-                0
-            )
+        status = "enabled" if new_debug else "disabled"
+        message = f"Debug logging {status}"
+        sublime.status_message(f"Colored Comments: {message}")
+        log.debug(message)
 
 
 class ColoredCommentsShowLogsCommand(sublime_plugin.WindowCommand):
-    """Command to show debug logs in a panel."""
+    """Command to show debug logs in an output panel."""
 
     def run(self):
-        """Display the debug logs in a panel."""
-        from .plugin.logger import dump_logs_to_panel
-        dump_logs_to_panel(self.window)
+        log.debug("ColoredCommentsShowLogsCommand.run() called")
+        if not settings.debug:
+            sublime.message_dialog(
+                "Debug logging is currently disabled.\n\n"
+                "Enable debug logging first using:\n"
+                "Command Palette → 'Colored Comments: Toggle Debug Logging'"
+            )
+            return
+        log.dump_logs_to_panel(self.window)
+
+    def is_enabled(self):
+        """Only enable this command when debug mode is active."""
+        return settings.debug
 
 
 def plugin_loaded() -> None:
-    """Initialize plugin settings when loaded."""
+    """Handle plugin loading."""
+    log.debug("plugin_loaded() called")
     load_settings()
     log.set_debug_logging(settings.debug)
+    log.debug(f"Colored Comments v{VERSION} loaded with sublime_aio support")
+    log.debug(f"Settings loaded: debug={settings.debug}, debounce_delay={settings.debounce_delay}")
+    log.debug(f"Disabled syntax: {settings.disabled_syntax}")
+    log.debug(f"Tag regex patterns: {list(settings.tag_regex.keys())}")
+    sublime.status_message("Colored Comments: Async support enabled")
 
 
 def plugin_unloaded() -> None:
-    """Clean up when plugin is unloaded."""
+    """Handle plugin unloading."""
+    log.debug("plugin_unloaded() called")
     unload_settings()
+    log.debug("Colored Comments unloaded")
