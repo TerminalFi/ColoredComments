@@ -4,6 +4,7 @@ import asyncio
 import os
 import re
 from pathlib import Path
+from typing import Optional, Dict, List, Any, Callable
 
 import sublime_aio
 
@@ -23,23 +24,23 @@ DEFAULT_CS = 'Packages/Color Scheme - Default/Mariana.sublime-color-scheme'
 class CommentProcessor:
     """Unified comment processor for both decoration and tag scanning."""
 
-    def __init__(self, view):
+    def __init__(self, view: sublime.View, /) -> None:
         self.view = view
 
-    def should_process_view(self):
+    def should_process_view(self) -> bool:
         """Check if the view needs to be processed based on syntax settings."""
         syntax = self.view.settings().get("syntax")
         should_process = syntax not in settings.disabled_syntax
         log.debug(f"View {self.view.id()} syntax check: {syntax}, should_process: {should_process}")
         return should_process
 
-    def find_comment_regions(self):
+    def find_comment_regions(self) -> List[sublime.Region]:
         """Find all comment regions in the view."""
         regions = self.view.find_by_selector(comment_selector)
         log.debug(f"View {self.view.id()} found {len(regions)} comment regions using selector: {comment_selector}")
         return regions
 
-    async def process_comments(self, processor_func, batch_size=100):
+    async def process_comments(self, processor_func: Callable, /, *, batch_size: int = 100) -> List[Any]:
         """Process all comments in the view using the provided processor function.
 
         Args:
@@ -51,9 +52,7 @@ class CommentProcessor:
             log.debug(f"View {self.view.id()} should not be processed")
             return []
 
-        comment_regions = self.find_comment_regions()
-
-        if not comment_regions:
+        if not (comment_regions := self.find_comment_regions()):
             log.debug(f"View {self.view.id()} no comment regions found")
             return []
 
@@ -71,8 +70,7 @@ class CommentProcessor:
                     line = self.view.substr(reg)
                     line_num = self.view.rowcol(reg.begin())[0] + 1
 
-                    result = await processor_func(line, reg, line_num)
-                    if result is not None:
+                    if (result := await processor_func(line, reg, line_num)) is not None:
                         if isinstance(result, list):
                             results.extend(result)
                         else:
@@ -93,7 +91,7 @@ class CommentProcessor:
 class CommentDecorationManager:
     """Manages the decoration of comments in a view with async support."""
 
-    def __init__(self, view):
+    def __init__(self, view: sublime.View, /) -> None:
         self.view = view
         self._last_change_count = 0
         self._last_region_row = -1
@@ -101,29 +99,29 @@ class CommentDecorationManager:
         self.processor = CommentProcessor(view)
         log.debug(f"CommentDecorationManager created for view {view.id()}: {view.file_name()}")
 
-    def should_process_view(self):
+    def should_process_view(self) -> bool:
         """Check if the view needs to be processed based on syntax settings."""
         return self.processor.should_process_view()
 
-    def needs_update(self):
+    def needs_update(self) -> bool:
         """Check if view has changed since last processing."""
         current_change = self.view.change_count()
-        needs_update = current_change != self._last_change_count
-        if needs_update:
+        if needs_update := (current_change != self._last_change_count):
             log.debug(f"View {self.view.id()} needs update: change_count {self._last_change_count} -> {current_change}")
             self._last_change_count = current_change
         else:
             log.debug(f"View {self.view.id()} no update needed: change_count unchanged at {current_change}")
         return needs_update
 
-    def find_comment_regions(self):
+    def find_comment_regions(self) -> List[sublime.Region]:
         """Find all comment regions in the view."""
         return self.processor.find_comment_regions()
 
-    async def process_comment_line_for_decoration(self, line, reg, line_num, to_decorate, prev_match=""):
+    async def process_comment_line_for_decoration(self, line: str, reg: sublime.Region, line_num: int, 
+                                                to_decorate: Dict[str, List[sublime.Region]], 
+                                                prev_match: str = "") -> Optional[str]:
         """Process a single comment line for decoration."""
-        stripped_line = line.strip()
-        if not stripped_line:
+        if not (stripped_line := line.strip()):
             return None
 
         if not settings.get_matching_pattern().startswith(" "):
@@ -155,7 +153,7 @@ class CommentDecorationManager:
 
         return None
 
-    def apply_region_styles(self, to_decorate):
+    def apply_region_styles(self, to_decorate: Dict[str, List[sublime.Region]], /) -> None:
         """Apply visual styles to decorated regions."""
         total_regions = sum(len(regions) for regions in to_decorate.values())
         log.debug(f"View {self.view.id()} applying styles to {total_regions} regions across {len(to_decorate)} tag types")
@@ -177,18 +175,18 @@ class CommentDecorationManager:
                     flags=flags
                 )
 
-    def clear_decorations(self):
+    def clear_decorations(self) -> None:
         """Clear all existing decorations from the view."""
         log.debug(f"View {self.view.id()} clearing decorations for keys: {settings.region_keys}")
         for key in settings.region_keys:
             self.view.erase_regions(key)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up resources when the manager is no longer needed."""
         log.debug(f"CommentDecorationManager cleanup for view {self.view.id()}")
         self.clear_decorations()
 
-    async def apply_decorations(self):
+    async def apply_decorations(self) -> None:
         """Apply decorations asynchronously with batching."""
         log.debug(f"View {self.view.id()} apply_decorations called, processing: {self._processing}")
 
@@ -218,17 +216,17 @@ class CommentDecorationManager:
             log.debug(f"View {self.view.id()} clearing existing decorations")
             self.clear_decorations()
 
-            to_decorate = {}
+            to_decorate: Dict[str, List[sublime.Region]] = {}
             prev_match = ""
             self._last_region_row = -1
 
             # Use the unified comment processor
-            async def decoration_processor(line, reg, line_num):
+            async def decoration_processor(line: str, reg: sublime.Region, line_num: int) -> None:
                 nonlocal prev_match
-                result = await self.process_comment_line_for_decoration(
+                if (result := await self.process_comment_line_for_decoration(
                     line, reg, line_num, to_decorate, prev_match
-                )
-                prev_match = result if result else prev_match
+                )):
+                    prev_match = result
                 return None  # We don't need to collect results, just populate to_decorate
 
             await self.processor.process_comments(decoration_processor, batch_size=100)
@@ -409,38 +407,38 @@ class ColoredCommentsClearCommand(sublime_plugin.TextCommand):
 
 class AsyncTagScanner:
     """Async tag scanner for efficient project-wide scanning."""
-
-    def __init__(self, window):
+    
+    def __init__(self, window: sublime.Window, /) -> None:
         self.window = window
         log.debug(f"AsyncTagScanner created for window {window.id()}")
-
-    async def scan_for_tags(self, tag_filter=None, current_file_only=False):
+        
+    async def scan_for_tags(self, *, tag_filter: Optional[str] = None, 
+                          current_file_only: bool = False) -> List[Dict[str, Any]]:
         """Scan for tags in project files asynchronously."""
         log.debug(f"AsyncTagScanner.scan_for_tags() called, tag_filter: {tag_filter}, current_file_only: {current_file_only}")
         results = []
-        files = await self._get_files_to_scan(current_file_only)
-
-        if not files:
+        
+        if not (files := await self._get_files_to_scan(current_file_only)):
             log.debug("No files to scan")
             return results
-
+        
         total_files = len(files)
         log.debug(f"Scanning {total_files} files for tags")
-
+        
         # Process files in batches for better progress reporting
         batch_size = 10
         for i in range(0, total_files, batch_size):
             batch = files[i:i + batch_size]
             log.debug(f"Processing batch {i//batch_size + 1}, files {i} to {i + len(batch)}")
-
+            
             # Process batch concurrently
             batch_tasks = [
                 self._scan_file(file_path, tag_filter)
                 for file_path in batch
             ]
-
+            
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
-
+            
             # Collect results, filtering out exceptions
             batch_found = 0
             for result in batch_results:
@@ -449,93 +447,90 @@ class AsyncTagScanner:
                     batch_found += len(result)
                 elif isinstance(result, Exception):
                     log.debug(f"Error in batch processing: {result}")
-
+            
             log.debug(f"Batch complete, found {batch_found} tags in this batch")
-
+            
             # Update progress
             progress = min(100, int(((i + batch_size) / total_files) * 100))
             sublime.status_message(f"Scanning tags... {progress}% ({len(results)} found)")
-
+            
             # Yield control to keep UI responsive
             await asyncio.sleep(0.01)
-
+        
         log.debug(f"Tag scanning complete, found {len(results)} total tags")
         return results
 
-    async def _get_files_to_scan(self, current_file_only):
+    async def _get_files_to_scan(self, current_file_only: bool) -> List[Path]:
         """Get list of files to scan asynchronously."""
         if current_file_only:
-            view = self.window.active_view()
-            if view and view.file_name():
-                log.debug(f"Scanning current file only: {view.file_name()}")
-                return [Path(view.file_name())]
+            if (view := self.window.active_view()) and (file_name := view.file_name()):
+                log.debug(f"Scanning current file only: {file_name}")
+                return [Path(file_name)]
             log.debug("No current file to scan")
             return []
 
         files = []
-        folders = self.window.folders()
-
-        if not folders:
+        if not (folders := self.window.folders()):
             log.debug("No project folders found")
             return files
 
         log.debug(f"Scanning {len(folders)} project folders")
-
+        
         # Collect files from all project folders
         for folder in folders:
             folder_path = Path(folder)
             log.debug(f"Scanning folder: {folder_path}")
             try:
-                folder_files = await self._scan_directory(folder_path)
-                files.extend(folder_files)
-                log.debug(f"Found {len(folder_files)} files in {folder_path}")
+                if (folder_files := await self._scan_directory(folder_path)):
+                    files.extend(folder_files)
+                    log.debug(f"Found {len(folder_files)} files in {folder_path}")
             except Exception as e:
                 log.debug(f"Error scanning folder {folder_path}: {e}")
-
+        
         log.debug(f"Total files to scan: {len(files)}")
         return files
 
-    async def _scan_directory(self, directory):
+    async def _scan_directory(self, directory: Path) -> List[Path]:
         """Scan directory for relevant files asynchronously."""
         files = []
         try:
             # Use rglob for recursive scanning
             all_files = list(directory.rglob('*'))
             log.debug(f"Directory {directory} contains {len(all_files)} total items")
-
+            
             # Filter files in batches to avoid blocking
             batch_size = 500
             for i in range(0, len(all_files), batch_size):
                 batch = all_files[i:i + batch_size]
-
+                
                 batch_files = 0
                 for file_path in batch:
-                    if (file_path.is_file() and
+                    if (file_path.is_file() and 
                         not self._should_skip_file(file_path) and
                         self._is_text_file(file_path)):
                         files.append(file_path)
                         batch_files += 1
-
+                
                 log.debug(f"Directory batch {i//batch_size + 1}: {batch_files} valid files found")
-
+                
                 # Yield control periodically
                 if i + batch_size < len(all_files):
                     await asyncio.sleep(0.001)
-
+                    
         except (OSError, PermissionError) as e:
             log.debug(f"Error accessing directory {directory}: {e}")
-
+        
         return files
 
-    async def _scan_file(self, file_path, tag_filter):
+    async def _scan_file(self, file_path: Path, tag_filter: Optional[str]) -> List[Dict[str, Any]]:
         """Scan a single file for comment tags using the unified CommentProcessor."""
         results = []
         file_view = None
         was_already_open = False
-
+        
         try:
             log.debug(f"Scanning file {file_path} for tags")
-
+            
             # Check if file is already open in any view
             for view in self.window.views():
                 if view.file_name() == str(file_path):
@@ -543,35 +538,35 @@ class AsyncTagScanner:
                     was_already_open = True
                     log.debug(f"File {file_path.name} is already open, using existing view")
                     break
-
+            
             # If not already open, open it as transient
             if not file_view:
                 log.debug(f"Opening file {file_path.name} as transient view")
                 file_view = self.window.open_file(str(file_path), sublime.ENCODED_POSITION | sublime.TRANSIENT)
                 was_already_open = False
-
+            
             # Wait for the file to load
             while file_view.is_loading():
                 await asyncio.sleep(0.01)
-
+            
             log.debug(f"File {file_path.name} loaded, using CommentProcessor")
-
+            
             # Use the unified CommentProcessor
             processor = CommentProcessor(file_view)
-
+            
             # Create a processor function for tag scanning
-            async def tag_processor(line, reg, line_num):
+            async def tag_processor(line: str, reg: sublime.Region, line_num: int) -> Optional[List[Dict[str, Any]]]:
                 return await self._process_comment_line(line, line_num, file_path, tag_filter)
-
+            
             # Process comments using the unified processor
             file_results = await processor.process_comments(tag_processor, batch_size=50)
             results.extend(file_results)
-
+            
             if len(file_results) > 0:
                 log.debug(f"File {file_path.name} contains {len(file_results)} tags total")
             else:
                 log.debug(f"File {file_path.name} contains no matching tags")
-
+                    
         except Exception as e:
             log.debug(f"Error scanning file {file_path}: {e}")
             import traceback
@@ -579,19 +574,18 @@ class AsyncTagScanner:
         finally:
             # Only close the view if we opened it as transient AND it's not the active view
             if file_view and not was_already_open and file_view.is_valid():
-                active_view = self.window.active_view()
-                if file_view != active_view:
+                if (active_view := self.window.active_view()) and file_view != active_view:
                     log.debug(f"Closing transient view for {file_path.name}")
                     file_view.close()
                 else:
                     log.debug(f"Not closing {file_path.name} because it's the active view")
-
+        
         return results
 
-    async def _process_comment_line(self, line, line_num, file_path, tag_filter):
+    async def _process_comment_line(self, line: str, line_num: int, file_path: Path, 
+                                  tag_filter: Optional[str]) -> Optional[List[Dict[str, Any]]]:
         """Process a single comment line for tag matches (unified with CommentDecorationManager logic)."""
-        stripped_line = line.strip()
-        if not stripped_line:
+        if not (stripped_line := line.strip()):
             return None
 
         # Use the same matching pattern logic as CommentDecorationManager
@@ -603,15 +597,14 @@ class AsyncTagScanner:
             # Apply tag filter if specified
             if tag_filter and tag_name.lower() != tag_filter.lower():
                 continue
-
+                
             # Use the same regex matching as CommentDecorationManager
             if regex.search(line.strip()):
                 # Calculate relative path for display
                 try:
-                    if self.window.folders():
-                        relative_path = str(file_path.relative_to(Path(self.window.folders()[0])))
-                    else:
-                        relative_path = file_path.name
+                    relative_path = (str(file_path.relative_to(Path(self.window.folders()[0]))) 
+                                   if self.window.folders() 
+                                   else file_path.name)
                 except ValueError:
                     relative_path = file_path.name
 
@@ -626,7 +619,7 @@ class AsyncTagScanner:
 
         return results if results else None
 
-    def _should_skip_file(self, file_path):
+    def _should_skip_file(self, file_path: Path, /) -> bool:
         """Check if file should be skipped based on extension and path."""
         # Skip binary file extensions
         skip_extensions = {
@@ -636,25 +629,21 @@ class AsyncTagScanner:
             '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm',
             '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'
         }
-
+        
         # Skip certain directories
         skip_dirs = {
-            '__pycache__', '.git', '.svn', '.hg', 'node_modules',
+            '__pycache__', '.git', '.svn', '.hg', 'node_modules', 
             '.vscode', '.idea', '.vs', 'bin', 'obj', 'build', 'dist'
         }
-
+        
         # Check extension
         if file_path.suffix.lower() in skip_extensions:
             return True
-
+        
         # Check if any part of the path contains skip directories
-        for part in file_path.parts:
-            if part in skip_dirs:
-                return True
+        return any(part in skip_dirs for part in file_path.parts)
 
-        return False
-
-    def _is_text_file(self, file_path):
+    def _is_text_file(self, file_path: Path, /) -> bool:
         """Check if file is likely a text file."""
         # Known text file extensions
         text_extensions = {
@@ -663,21 +652,22 @@ class AsyncTagScanner:
             '.rb', '.go', '.rs', '.swift', '.kt', '.scala', '.sh', '.bat',
             '.sql', '.r', '.m', '.pl', '.lua', '.vim', '.el', '.clj', '.hs'
         }
-
+        
         if file_path.suffix.lower() in text_extensions:
             return True
-
+        
         # For files without extension, try to detect if they're text
         if not file_path.suffix:
             try:
                 with open(file_path, 'rb') as f:
-                    chunk = f.read(512)
+                    if not (chunk := f.read(512)):
+                        return False
                     # Simple heuristic: if it contains mostly printable ASCII, it's probably text
                     text_chars = sum(1 for byte in chunk if 32 <= byte <= 126 or byte in (9, 10, 13))
-                    return text_chars / len(chunk) > 0.7 if chunk else False
-            except:
+                    return text_chars / len(chunk) > 0.7
+            except Exception:
                 return False
-
+        
         return False
 
 
@@ -701,7 +691,7 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
 
         try:
             sublime.status_message("Scanning for comment tags...")
-            results = await scanner.scan_for_tags(tag_filter, current_file_only)
+            results = await scanner.scan_for_tags(tag_filter=tag_filter, current_file_only=current_file_only)
 
             if results:
                 log.debug(f"Found {len(results)} tag results")
@@ -736,7 +726,7 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
             sublime.error_message(f"Error scanning for tags: {str(e)}")
 
     def _show_results(self, results, tag_filter=None, current_file_only=False):
-        """Show results in a quick panel with navigation and live preview."""
+        """Show results in a quick panel with navigation and live preview using QuickPanelItem."""
         # Sort results by tag type, then by file, then by line number
         results.sort(key=lambda x: (x['tag'], x['relative_path'], x['line_num']))
         
@@ -750,24 +740,69 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
                     'view_id': view.id()
                 }
         
+        # Define kind mappings for different tag types
+        tag_kinds = {
+            'TODO': (sublime.KIND_ID_FUNCTION, "T", "Todo"),
+            'FIXME': (sublime.KIND_ID_VARIABLE, "F", "Fix Me"),
+            'Important': (sublime.KIND_ID_MARKUP, "!", "Important"),
+            'Question': (sublime.KIND_ID_NAMESPACE, "?", "Question"),
+            'Deprecated': (sublime.KIND_ID_TYPE, "D", "Deprecated"),
+            'UNDEFINED': (sublime.KIND_ID_SNIPPET, "U", "Undefined"),
+        }
+        
         panel_items = []
         for result in results:
-            # Truncate long lines for better display
-            tag_line = result['line'].strip()
-            if len(tag_line) > 80:
-                tag_line = tag_line[:77] + "..."
-                
-            # Format the display
-            tag_display = f"[{result['tag']}]"
-            line_display = tag_line
-            location_display = f"{result['relative_path']}:{result['line_num']}"
+            # Get tag-specific kind or default
+            kind = tag_kinds.get(result['tag'], (sublime.KIND_ID_MARKUP, "C", "Comment"))
             
-            panel_items.append([
-                f"{tag_display} {line_display}",
-                location_display
-            ])
+            # Prepare the comment text with syntax highlighting
+            comment_text = result['line'].strip()
+            
+            # Truncate very long lines but show more than before
+            if len(comment_text) > 120:
+                comment_text = comment_text[:117] + "..."
+            
+            # Create trigger text (what shows in the panel)
+            trigger = f"[{result['tag']}] {comment_text}"
+            
+            # Create annotation with file location
+            annotation = f"{result['relative_path']}:{result['line_num']}"
+            
+            # Create minihtml details with enhanced formatting
+            # Show the tag type, file context, and a preview
+            file_icon = "📄" if result['file'].endswith('.py') else "📝"
+            tag_emoji = {
+                'TODO': "📋",
+                'FIXME': "🔧", 
+                'Important': "⚠️",
+                'Question': "❓",
+                'Deprecated': "⚠️",
+                'UNDEFINED': "❔"
+            }.get(result['tag'], "💬")
+            
+            details = [
+                f"<div style='padding: 2px 0;'>"
+                f"<span style='color: var(--accent);'>{tag_emoji} {result['tag']}</span> "
+                f"<span style='color: var(--foreground);'>in</span> "
+                f"<span style='color: var(--bluish);'>{file_icon} {result['relative_path']}</span>"
+                f"</div>",
+                
+                f"<div style='padding: 2px 0; font-size: 0.9em; color: var(--foreground);'>"
+                f"<span style='color: var(--accent);'>Line {result['line_num']}:</span> "
+                f"<code style='background: var(--background); padding: 1px 3px; border-radius: 2px;'>"
+                f"{sublime.html.escape(comment_text)}"
+                f"</code>"
+                f"</div>"
+            ]
+            
+            panel_items.append(sublime.QuickPanelItem(
+                trigger=trigger,
+                details=details,
+                annotation=annotation,
+                kind=kind
+            ))
 
-        # Add header information
+        # Add header information for the placeholder
         scope_text = "Current File" if current_file_only else "Project"
         filter_text = f" - {tag_filter} Tags" if tag_filter else " - All Tags"
         header_text = f"{scope_text}{filter_text} ({len(results)} found)"
@@ -804,9 +839,18 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
             if index >= 0:
                 result = results[index]
                 
-                # Show preview in status bar
+                # Show enhanced preview in status bar
+                tag_emoji = {
+                    'TODO': "📋",
+                    'FIXME': "🔧", 
+                    'Important': "⚠️",
+                    'Question': "❓",
+                    'Deprecated': "⚠️",
+                    'UNDEFINED': "❔"
+                }.get(result['tag'], "💬")
+                
                 preview_line = result['line'].strip()[:100]
-                sublime.status_message(f"[{result['tag']}] {preview_line}")
+                sublime.status_message(f"{tag_emoji} [{result['tag']}] {preview_line}")
                 
                 # Navigate to the location for preview
                 try:
@@ -858,7 +902,7 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
                 # Clear status when no item is highlighted
                 sublime.status_message("")
 
-        # Show quick panel with header and live preview
+        # Show quick panel with enhanced QuickPanelItems
         self.window.show_quick_panel(
             panel_items, 
             on_done, 
