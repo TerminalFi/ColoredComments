@@ -23,37 +23,6 @@
         }
     },
     {
-        "caption": "Colored Comments: List TODOs",
-        "command": "colored_comments_list_tags",
-        "args": {
-            "tag_filter": "TODO",
-            "current_file_only": true
-        }
-    },
-    {
-        "caption": "Colored Comments: List TODOs in Current File",
-        "command": "colored_comments_list_tags",
-        "args": {
-            "tag_filter": "TODO",
-            "current_file_only": true
-        }
-    },
-    {
-        "caption": "Colored Comments: List FIXMEs",
-        "command": "colored_comments_list_tags",
-        "args": {
-            "tag_filter": "FIXME"
-        }
-    },
-    {
-        "caption": "Colored Comments: List FIXMEs in Current File",
-        "command": "colored_comments_list_tags",
-        "args": {
-            "tag_filter": "FIXME",
-            "current_file_only": true
-        }
-    },
-    {
         "caption": "Colored Comments: Toggle Debug Logging",
         "command": "colored_comments_toggle_debug"
     },

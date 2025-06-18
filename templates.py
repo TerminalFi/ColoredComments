@@ -1,7 +1,7 @@
 """
 Templates used by the Colored Comments plugin.
 """
-# TODO: Run
+
 # Color scheme template for comments highlighting
 SCHEME_TEMPLATE = """\
 {
@@ -57,5 +57,3 @@ SCHEME_TEMPLATE = """\
   ],
 }""".replace("  ", "\t") 
 
-# TODO: Syntax
-# file formate
