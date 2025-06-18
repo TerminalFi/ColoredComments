@@ -480,45 +480,108 @@ class AsyncTagScanner:
         return files
 
     async def _scan_file(self, file_path, tag_filter):
-        """Scan a single file for comment tags."""
+        """Scan a single file for comment tags using Sublime's syntax engine."""
         results = []
+        file_view = None
+        was_already_open = False
 
         try:
-            # Read file with proper encoding handling
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
+            log.debug(f"Scanning file {file_path} for tags")
 
-            log.debug(f"Scanning file {file_path} with {len(lines)} lines")
+            # Check if file is already open in any view
+            for view in self.window.views():
+                if view.file_name() == str(file_path):
+                    file_view = view
+                    was_already_open = True
+                    log.debug(f"File {file_path.name} is already open, using existing view")
+                    break
 
-            # Process lines in batches for large files
-            batch_size = 200
+            # If not already open, open it as transient
+            if not file_view:
+                log.debug(f"Opening file {file_path.name} as transient view")
+                file_view = self.window.open_file(str(file_path), sublime.ENCODED_POSITION | sublime.TRANSIENT)
+                was_already_open = False
+
+            # Wait for the file to load
+            while file_view.is_loading():
+                await asyncio.sleep(0.01)
+
+            log.debug(f"File {file_path.name} loaded, checking syntax")
+
+            # Check if we should process this view based on syntax
+            syntax = file_view.settings().get("syntax")
+            if syntax in settings.disabled_syntax:
+                log.debug(f"File {file_path.name} has disabled syntax ({syntax}), skipping")
+                return results
+
+            # Use the same comment detection as CommentDecorationManager
+            comment_regions = file_view.find_by_selector(comment_selector)
+            log.debug(f"File {file_path.name} found {len(comment_regions)} comment regions using selector: {comment_selector}")
+
+            if not comment_regions:
+                log.debug(f"File {file_path.name} has no comment regions")
+                return results
+
+            # Process comment regions in batches
+            batch_size = 50
             file_tags = 0
-            for i in range(0, len(lines), batch_size):
-                batch_lines = lines[i:i + batch_size]
 
-                for line_offset, line in enumerate(batch_lines):
-                    line_num = i + line_offset + 1
-                    found = await self._process_line(line, line_num, file_path, tag_filter, results)
-                    if found:
-                        file_tags += 1
+            log.debug(f"Processing {len(comment_regions)} comment regions in batches of {batch_size}")
+
+            for i in range(0, len(comment_regions), batch_size):
+                batch = comment_regions[i:i + batch_size]
+                log.debug(f"Processing batch {i//batch_size + 1} with {len(batch)} regions")
+
+                batch_tags = 0
+                for region in batch:
+                    # Split by newlines like CommentDecorationManager does
+                    for reg in file_view.split_by_newlines(region):
+                        line = file_view.substr(reg)
+                        line_num = file_view.rowcol(reg.begin())[0] + 1
+
+                        found = await self._process_comment_line(
+                            line, line_num, file_path, tag_filter, results
+                        )
+                        if found:
+                            file_tags += 1
+                            batch_tags += 1
+
+                log.debug(f"Batch {i//batch_size + 1} complete, found {batch_tags} tags")
 
                 # Yield control for large files
-                if i + batch_size < len(lines):
+                if i + batch_size < len(comment_regions):
                     await asyncio.sleep(0.001)
 
             if file_tags > 0:
-                log.debug(f"File {file_path.name} contains {file_tags} tags")
+                log.debug(f"File {file_path.name} contains {file_tags} tags total")
+            else:
+                log.debug(f"File {file_path.name} contains no matching tags")
 
         except Exception as e:
             log.debug(f"Error scanning file {file_path}: {e}")
+            import traceback
+            log.debug(f"Traceback: {traceback.format_exc()}")
+        finally:
+            # Only close the view if we opened it as transient AND it's not the active view
+            if file_view and not was_already_open and file_view.is_valid():
+                active_view = self.window.active_view()
+                if file_view != active_view:
+                    log.debug(f"Closing transient view for {file_path.name}")
+                    file_view.close()
+                else:
+                    log.debug(f"Not closing {file_path.name} because it's the active view")
 
         return results
 
-    async def _process_line(self, line, line_num, file_path, tag_filter, results):
-        """Process a single line for tag matches."""
+    async def _process_comment_line(self, line, line_num, file_path, tag_filter, results):
+        """Process a single comment line for tag matches (same logic as CommentDecorationManager)."""
         stripped_line = line.strip()
         if not stripped_line:
             return False
+
+        # Use the same matching pattern logic as CommentDecorationManager
+        if not settings.get_matching_pattern().startswith(" "):
+            line = stripped_line
 
         found = False
         for tag_name, regex in settings.tag_regex.items():
@@ -526,7 +589,8 @@ class AsyncTagScanner:
             if tag_filter and tag_name.lower() != tag_filter.lower():
                 continue
 
-            if regex.search(stripped_line):
+            # Use the same regex matching as CommentDecorationManager
+            if regex.search(line.strip()):
                 # Calculate relative path for display
                 try:
                     if self.window.folders():
@@ -544,6 +608,7 @@ class AsyncTagScanner:
                     'relative_path': relative_path
                 })
                 found = True
+                log.debug(f"Found {tag_name} tag in {file_path.name}:{line_num}: {stripped_line[:50]}...")
 
         return found
 
@@ -608,45 +673,245 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
     async def run(self, tag_filter=None, current_file_only=False):
         """Run the tag listing command asynchronously."""
         log.debug(f"ColoredCommentsListTagsCommand.run() called, tag_filter: {tag_filter}, current_file_only: {current_file_only}")
+
+        # Validate tag_filter if provided
+        if tag_filter and tag_filter not in settings.tag_regex:
+            available_tags = ", ".join(settings.tag_regex.keys())
+            sublime.error_message(
+                f"Unknown tag filter: '{tag_filter}'\n\n"
+                f"Available tags: {available_tags}"
+            )
+            return
+
         scanner = AsyncTagScanner(self.window)
 
-        sublime.status_message("Scanning for comment tags...")
-        results = await scanner.scan_for_tags(tag_filter, current_file_only)
+        try:
+            sublime.status_message("Scanning for comment tags...")
+            results = await scanner.scan_for_tags(tag_filter, current_file_only)
 
-        if results:
-            log.debug(f"Showing {len(results)} tag results")
-            self._show_results(results)
-            sublime.status_message(f"Found {len(results)} comment tags")
-        else:
-            log.debug("No comment tags found")
-            sublime.status_message("No comment tags found")
-            sublime.message_dialog("No comment tags found in the current scope.")
+            if results:
+                log.debug(f"Found {len(results)} tag results")
+                self._show_results(results, tag_filter, current_file_only)
+                scope_text = "current file" if current_file_only else "project"
+                filter_text = f" (filtered by '{tag_filter}')" if tag_filter else ""
+                sublime.status_message(f"Found {len(results)} comment tags in {scope_text}{filter_text}")
+            else:
+                log.debug("No comment tags found")
+                scope_text = "current file" if current_file_only else "project"
+                filter_text = f" matching '{tag_filter}'" if tag_filter else ""
+                sublime.status_message(f"No comment tags found in {scope_text}{filter_text}")
 
-    def _show_results(self, results):
-        """Show results in a quick panel with navigation."""
+                # Show more helpful message
+                if tag_filter:
+                    sublime.message_dialog(f"No '{tag_filter}' tags found in {scope_text}.")
+                else:
+                    available_tags = ", ".join(settings.tag_regex.keys())
+                    sublime.message_dialog(
+                        f"No comment tags found in {scope_text}.\n\n"
+                        f"Available tag types: {available_tags}\n\n"
+                        f"Example usage in comments:\n"
+                        f"# TODO: Fix this issue\n"
+                        f"# FIXME: This needs work\n"
+                        f"# ! Important note"
+                    )
+
+        except Exception as e:
+            log.debug(f"Error in tag scanning: {e}")
+            import traceback
+            log.debug(f"Traceback: {traceback.format_exc()}")
+            sublime.error_message(f"Error scanning for tags: {str(e)}")
+
+    def _show_results(self, results, tag_filter=None, current_file_only=False):
+        """Show results in a quick panel with navigation and live preview."""
+        # Sort results by tag type, then by file, then by line number
+        results.sort(key=lambda x: (x['tag'], x['relative_path'], x['line_num']))
+        
+        # Store original viewport positions for all open views
+        original_positions = {}
+        for view in self.window.views():
+            if view.file_name():
+                original_positions[view.file_name()] = {
+                    'viewport_position': view.viewport_position(),
+                    'selection': [r for r in view.sel()],
+                    'view_id': view.id()
+                }
+        
         panel_items = []
         for result in results:
             # Truncate long lines for better display
-            tag_line = result['line'].strip()[:80]
-            if len(result['line'].strip()) > 80:
-                tag_line += "..."
-
+            tag_line = result['line'].strip()
+            if len(tag_line) > 80:
+                tag_line = tag_line[:77] + "..."
+                
+            # Format the display
+            tag_display = f"[{result['tag']}]"
+            line_display = tag_line
+            location_display = f"{result['relative_path']}:{result['line_num']}"
+            
             panel_items.append([
-                f"[{result['tag']}] {tag_line}",
-                f"{result['relative_path']}:{result['line_num']}"
+                f"{tag_display} {line_display}",
+                location_display
             ])
+
+        # Add header information
+        scope_text = "Current File" if current_file_only else "Project"
+        filter_text = f" - {tag_filter} Tags" if tag_filter else " - All Tags"
+        header_text = f"{scope_text}{filter_text} ({len(results)} found)"
+
+        def restore_original_positions():
+            """Restore all views to their original positions."""
+            for file_path, pos_data in original_positions.items():
+                # Find the view for this file
+                for view in self.window.views():
+                    if view.file_name() == file_path and view.id() == pos_data['view_id']:
+                        # Restore viewport position
+                        view.set_viewport_position(pos_data['viewport_position'], False)
+                        # Restore selection
+                        view.sel().clear()
+                        for region in pos_data['selection']:
+                            view.sel().add(region)
+                        break
 
         def on_done(index):
             if index >= 0:
                 result = results[index]
                 log.debug(f"Opening file at {result['file']}:{result['line_num']}")
-                # Open file at specific line
+                # Open file at specific line (this will be the final navigation)
                 self.window.open_file(
                     f"{result['file']}:{result['line_num']}",
                     sublime.ENCODED_POSITION
                 )
+            else:
+                # User cancelled, restore original positions
+                log.debug("Tag list cancelled, restoring original viewport positions")
+                restore_original_positions()
 
-        self.window.show_quick_panel(panel_items, on_done)
+        def on_highlight(index):
+            if index >= 0:
+                result = results[index]
+                
+                # Show preview in status bar
+                preview_line = result['line'].strip()[:100]
+                sublime.status_message(f"[{result['tag']}] {preview_line}")
+                
+                # Navigate to the location for preview
+                try:
+                    # Check if file is already open
+                    target_view = None
+                    for view in self.window.views():
+                        if view.file_name() == result['file']:
+                            target_view = view
+                            break
+                    
+                    if target_view:
+                        # File is already open, just navigate within it
+                        log.debug(f"Previewing in already open file: {result['relative_path']}:{result['line_num']}")
+                        
+                        # Calculate the point for the line
+                        point = target_view.text_point(result['line_num'] - 1, 0)
+                        
+                        # Clear selection and move to the line
+                        target_view.sel().clear()
+                        target_view.sel().add(point)
+                        
+                        # Show the location with some context
+                        target_view.show_at_center(point)
+                        
+                        # Make sure this view is visible (but don't focus it)
+                        self.window.focus_view(target_view)
+                        
+                    else:
+                        # File is not open, open it as transient for preview
+                        log.debug(f"Opening transient preview: {result['relative_path']}:{result['line_num']}")
+                        preview_view = self.window.open_file(
+                            f"{result['file']}:{result['line_num']}",
+                            sublime.ENCODED_POSITION | sublime.TRANSIENT
+                        )
+                        
+                        # Wait a moment for the file to load, then center the view
+                        def center_preview():
+                            if not preview_view.is_loading():
+                                point = preview_view.text_point(result['line_num'] - 1, 0)
+                                preview_view.show_at_center(point)
+                            else:
+                                sublime.set_timeout(center_preview, 10)
+                        
+                        sublime.set_timeout(center_preview, 10)
+                        
+                except Exception as e:
+                    log.debug(f"Error in preview navigation: {e}")
+            else:
+                # Clear status when no item is highlighted
+                sublime.status_message("")
+
+        # Show quick panel with header and live preview
+        self.window.show_quick_panel(
+            panel_items, 
+            on_done, 
+            flags=sublime.MONOSPACE_FONT,
+            on_highlight=on_highlight,
+            placeholder=header_text
+        )
+
+    def input(self, args):
+        """Provide input handler for tag filter."""
+        if "tag_filter" not in args:
+            return TagFilterInputHandler()
+        return None
+
+    def input_description(self):
+        """Description for the input handler."""
+        return "Tag Filter (optional)"
+
+
+class TagFilterInputHandler(sublime_plugin.ListInputHandler):
+    """Input handler for tag filter selection."""
+
+    def name(self):
+        return "tag_filter"
+
+    def placeholder(self):
+        return "Select tag type to filter (or leave blank for all)"
+
+    def list_items(self):
+        """Return list of available tag types."""
+        items = [
+            sublime.ListInputItem("All Tags", None, "Show all comment tags")
+        ]
+
+        # Add each available tag type
+        for tag_name in settings.tag_regex.keys():
+            # Get the tag definition for more info
+            tag_def = settings.tags.get(tag_name, {})
+            identifier = tag_def.get('identifier', tag_name)
+
+            items.append(
+                sublime.ListInputItem(
+                    f"{tag_name} Tags",
+                    tag_name,
+                    f"Show only {tag_name} tags (identifier: {identifier})"
+                )
+            )
+
+        return items
+
+
+class ColoredCommentsListCurrentFileTagsCommand(sublime_aio.WindowCommand):
+    """Quick command to list tags in current file only."""
+
+    async def run(self, tag_filter=None):
+        """Run tag listing for current file only."""
+        # Delegate to main command with current_file_only=True
+        await ColoredCommentsListTagsCommand(self.window).run(
+            tag_filter=tag_filter,
+            current_file_only=True
+        )
+
+    def input(self, args):
+        """Provide input handler for tag filter."""
+        if "tag_filter" not in args:
+            return TagFilterInputHandler()
+        return None
 
 
 class ColoredCommentsToggleDebugCommand(sublime_plugin.WindowCommand):
