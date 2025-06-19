@@ -22,10 +22,6 @@
         }
     },
     {
-        "caption": "Colored Comments: Toggle Debug Logging",
-        "command": "colored_comments_toggle_debug"
-    },
-    {
         "caption": "Colored Comments: Show Debug Logs",
         "command": "colored_comments_show_logs"
     },
