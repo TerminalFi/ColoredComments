@@ -9,12 +9,12 @@ from typing import Optional, Dict, List, Any, Callable
 import sublime_aio
 
 from .plugin import logger as log
-from .lib.sublime_lib import ResourcePath
+from sublime_lib import ResourcePath
 from .plugin.settings import load_settings, settings, unload_settings
 from .templates import SCHEME_TEMPLATE
 
 NAME = "Colored Comments"
-VERSION = "4.0.0"
+VERSION = "4.0.1"
 
 comment_selector = "comment - punctuation.definition.comment"
 KIND_SCHEME = (sublime.KIND_ID_VARIABLE, "s", "Scheme")
@@ -80,10 +80,6 @@ class CommentProcessor:
 
             total_processed += batch_processed
             log.debug(f"View {self.view.id()} batch complete, processed {batch_processed} lines, total: {total_processed}")
-
-            # Yield control after each batch to keep UI responsive
-            if i + batch_size < len(comment_regions):
-                await asyncio.sleep(0.001)
 
         return results
 
@@ -716,20 +712,6 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
                 filter_text = f" matching '{tag_filter}'" if tag_filter else ""
                 sublime.status_message(f"No comment tags found in {scope_text}{filter_text}")
 
-                # Show more helpful message
-                if tag_filter:
-                    sublime.message_dialog(f"No '{tag_filter}' tags found in {scope_text}.")
-                else:
-                    available_tags = ", ".join(settings.tag_regex.keys())
-                    sublime.message_dialog(
-                        f"No comment tags found in {scope_text}.\n\n"
-                        f"Available tag types: {available_tags}\n\n"
-                        f"Example usage in comments:\n"
-                        f"# TODO: Fix this issue\n"
-                        f"# FIXME: This needs work\n"
-                        f"# ! Important note"
-                    )
-
         except Exception as e:
             log.debug(f"Error in tag scanning: {e}")
             import traceback
@@ -1033,7 +1015,6 @@ def plugin_loaded() -> None:
     log.debug(f"Settings loaded: debug={settings.debug}, debounce_delay={settings.debounce_delay}")
     log.debug(f"Disabled syntax: {settings.disabled_syntax}")
     log.debug(f"Tag regex patterns: {list(settings.tag_regex.keys())}")
-    sublime.status_message("Colored Comments: Async support enabled")
 
 
 def plugin_unloaded() -> None:
