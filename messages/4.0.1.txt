@@ -1,0 +1,6 @@
+Version 3.0.3 (May 18, 2020)
+----------------------------
+
+  * Implement commands using `sublime_aio`
+  * Fix flicker for most highlighting
+  * Add GoTo comment commands
