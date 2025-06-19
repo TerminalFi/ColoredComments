@@ -1,0 +1,42 @@
+[
+    // List all colored comment tags in project
+    { 
+        "keys": ["ctrl+shift+t"], 
+        "command": "colored_comments_list_tags" 
+    },
+    
+    // List all colored comment tags in current file only
+    { 
+        "keys": ["ctrl+shift+alt+t"], 
+        "command": "colored_comments_list_tags",
+        "args": {"current_file_only": true}
+    },
+    
+    // List only TODOs in project
+    { 
+        "keys": ["ctrl+alt+t"], 
+        "command": "colored_comments_list_tags",
+        "args": {"tag_filter": "TODO"}
+    },
+    
+    // List only TODOs in current file
+    { 
+        "keys": ["ctrl+alt+shift+t"], 
+        "command": "colored_comments_list_tags",
+        "args": {"tag_filter": "TODO", "current_file_only": true}
+    },
+    
+    // List only FIXMEs in project
+    { 
+        "keys": ["ctrl+alt+f"], 
+        "command": "colored_comments_list_tags",
+        "args": {"tag_filter": "FIXME"}
+    },
+    
+    // List only FIXMEs in current file
+    { 
+        "keys": ["ctrl+alt+shift+f"], 
+        "command": "colored_comments_list_tags",
+        "args": {"tag_filter": "FIXME", "current_file_only": true}
+    }
+] 

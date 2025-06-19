@@ -1,0 +1,40 @@
+[
+    {
+        "caption": "Colored Comments: Edit Color Scheme",
+        "command": "colored_comments_edit_scheme"
+    },
+    {
+        "caption": "Colored Comments: GoTo Comment",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "tag_filter": null
+        }
+    },
+    {
+        "caption": "Colored Comments: List All Tags",
+        "command": "colored_comments_list_tags"
+    },
+    {
+        "caption": "Colored Comments: List All Tags in Current File",
+        "command": "colored_comments_list_tags",
+        "args": {
+            "current_file_only": true
+        }
+    },
+    {
+        "caption": "Colored Comments: Toggle Debug Logging",
+        "command": "colored_comments_toggle_debug"
+    },
+    {
+        "caption": "Colored Comments: Show Debug Logs",
+        "command": "colored_comments_show_logs"
+    },
+    {
+        "caption": "Colored Comments: Settings",
+        "command": "edit_settings",
+        "args": {
+            "base_file": "${packages}/Colored Comments/colored_comments.sublime-settings",
+            "default": "{\n\t$0\n}\n"
+        }
+    }
+]

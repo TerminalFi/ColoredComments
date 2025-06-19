@@ -1,0 +1,8 @@
+{
+    "*": {
+        "*": [
+            "sublime_aio",
+            "sublime_lib"
+        ]
+    }
+}

@@ -5,6 +5,10 @@
     "continued_matching": true,
     // Character to continue matching on
     "continued_matching_pattern": "-",
+    // Automatically continue highlighting based on previous line without requiring the continuation pattern
+    "auto_continue_highlight": false,
+    // Delay in milliseconds before applying comment decorations after typing (debounce)
+    "debounce_delay": 300,
     // Shows comment icon next to comments
     "comment_icon_enabled": false,
     // Which comment icon to use
@@ -16,17 +20,78 @@
         "Packages/Markdown/MultiMarkdown.sublime-syntax",
         "Packages/Markdown/Markdown.sublime-syntax"
     ],
-    // This is the list of tags/identifiers you want to highlight
-    // in your code.
-    "tags": {
-        // Friendly name for you to know what the purpose is
-        // and used in the OrderedDict
-        // These should be unique
+    // File scanning settings for tag search functionality
+    // File extensions to skip when scanning for tags (case-insensitive)
+    "skip_extensions": [
+        // Compiled/Binary files
+        ".pyc",
+        ".pyo",
+        ".class",
+        ".o",
+        ".obj",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        // Archives
+        ".jar",
+        ".war",
+        ".ear",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".7z",
+        // Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        // Media files
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        // Documents
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx"
+    ],
+    // Directory names to skip when scanning for tags
+    "skip_dirs": [
+        "__pycache__",
+        ".git",
+        ".svn",
+        ".hg",
+        "node_modules",
+        ".vscode",
+        ".idea",
+        ".vs",
+        "bin",
+        "obj",
+        "build",
+        "dist"
+    ],
+    // Default tags provided by the plugin
+    // Set to {} to disable all default tags
+    "default_tags": {
         "Important": {
             // The name of the scope being use in your color scheme file
-            "scope": "comments.important",
+            "scope": "source.python comments.important",
             // The actual identifier used to highlight the comments
             "identifier": "!",
+            // Emoji icon for this tag type (used in tag lists and previews)
+            "icon_emoji": "⚠️",
             // Enables sublime.DRAW_SOLID_UNDERLINE
             // Only noticable if outline = true
             "underline": false,
@@ -49,26 +114,69 @@
         "Deprecated": {
             "scope": "comments.deprecated",
             "identifier": "*",
+            "icon_emoji": "⚠️",
         },
         "Question": {
             "scope": "comments.question",
             "identifier": "?",
+            "icon_emoji": "❓",
         },
         "TODO": {
             "scope": "comments.todo",
             "identifier": "TODO[:]?|todo[:]?",
             "is_regex": true,
             "ignorecase": true,
+            "icon_emoji": "📋",
         },
         "FIXME": {
             "scope": "comments.fixme",
             "identifier": "FIXME[:]?|fixme[:]?",
-            "is_regex": true
+            "is_regex": true,
+            "icon_emoji": "🔧",
         },
         "UNDEFINED": {
             "scope": "comments.undefined",
             "identifier": "//[:]?",
-            "is_regex": true
+            "is_regex": true,
+            "icon_emoji": "❔",
         }
+    },
+    // Custom tags that extend or override default_tags
+    // These will be merged with default_tags
+    // Custom tags with the same name will override default ones
+    "tags": {
+        // Example: Add a custom NOTE tag
+        // "NOTE": {
+        //     "scope": "comments.note",
+        //     "identifier": "NOTE[:]?|note[:]?",
+        //     "is_regex": true,
+        //     "ignorecase": true
+        // },
+        // Example: Override the Important tag to use different settings
+        // "Important": {
+        //     "scope": "comments.critical",
+        //     "identifier": "!!!",
+        //     "outline": true
+        // }
+        // USAGE EXAMPLES:
+        // 1. To add custom tags while keeping defaults:
+        //    Just add your tags here, they'll be merged with default_tags
+        // 2. To disable ALL default tags and use only custom ones:
+        //    Set "default_tags": {} above, then add your tags here
+        // 3. To modify a default tag:
+        //    Add a tag with the same name here - it will override the default
+        // 4. To use only defaults:
+        //    Leave this section empty: "tags": {}
+        // 5. To customize emoji icons:
+        //    Add "icon_emoji": "🔥" to any tag configuration
+        //
+        // Example custom tag with emoji:
+        // "NOTE": {
+        //     "scope": "comments.note",
+        //     "identifier": "NOTE[:]?|note[:]?",
+        //     "is_regex": true,
+        //     "ignorecase": true,
+        //     "icon_emoji": "📝"
+        // }
     }
 }
