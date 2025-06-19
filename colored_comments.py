@@ -2,9 +2,11 @@ import sublime
 import sublime_plugin
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Set
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
+import threading
+import time
 
 import sublime_aio
 
@@ -40,6 +42,9 @@ class TagResult:
                 self.relative_path = Path(self.file).name
         except (ValueError, AttributeError):
             self.relative_path = Path(self.file).name
+
+
+
 
 
 class BaseCommentProcessor:
@@ -195,9 +200,9 @@ class FileScanner:
                 ]
                 files.extend(valid_files)
 
-                # Yield control periodically for large directories
-                if len(all_files) > 1000:
-                    await asyncio.sleep(0.01)
+                            # Removed async sleep - was causing delays for large directories
+            # if len(all_files) > 1000:
+            #     await asyncio.sleep(0.01)
 
             except (OSError, PermissionError) as e:
                 log.debug(f"Error scanning folder {folder_path}: {e}")
@@ -210,6 +215,7 @@ class AsyncTagScanner(BaseCommentProcessor):
 
     def __init__(self, window: sublime.Window):
         self.window = window
+        self._temp_panel = None
         log.debug(f"AsyncTagScanner created for window {window.id()}")
 
     async def scan_for_tags(self, *, tag_filter: Optional[str] = None,
@@ -220,21 +226,27 @@ class AsyncTagScanner(BaseCommentProcessor):
             return []
 
         results = []
-        batch_size = 10
+        batch_size = 12  # Larger batch size since async sleeps were removed
 
         for i in range(0, len(files), batch_size):
             batch = files[i:i + batch_size]
-            batch_tasks = [self._scan_file(file_path, tag_filter) for file_path in batch]
+            
+            # Create parallel tasks with unique panel names
+            batch_tasks = []
+            for j, file_path in enumerate(batch):
+                panel_name = f'_colored_comments_temp_view_{i}_{j}'
+                batch_tasks.append(self._scan_file_with_unique_panel(file_path, panel_name, tag_filter))
+            
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
             for result in batch_results:
                 if isinstance(result, list):
                     results.extend(result)
 
-            # Update progress
+            # Update progress (removed async sleep - was causing delays)
             progress = min(100, int(((i + batch_size) / len(files)) * 100))
             sublime.status_message(f"Scanning tags... {progress}% ({len(results)} found)")
-            await asyncio.sleep(0.01)
+            # await asyncio.sleep(0.01)  # Removed - was causing major delays
 
         return results
 
@@ -249,21 +261,25 @@ class AsyncTagScanner(BaseCommentProcessor):
         return await FileScanner.get_project_files(folders) if folders else []
 
     @asynccontextmanager
-    async def _get_view_for_file(self, file_path: Path):
-        """Context manager for getting a view for a file."""
+    async def _get_view_for_file(self, file_path: Path, panel_name: str = '_colored_comments_temp_view'):
+        """Context manager for getting a view for a file with unique panel name."""
         # Check if already open
         for view in self.window.views():
             if view.file_name() == str(file_path):
                 yield view
                 return
 
-        # Create temporary panel
+        # Create a fresh temp panel for this file
         temp_panel = None
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
+            # Read file asynchronously to avoid blocking UI
+            content = await self._read_file_async(file_path)
+            if content is None:
+                yield None
+                return
 
-            temp_panel = self.window.create_output_panel('_colored_comments_temp_view')
+            # Create fresh panel for this file with unique name
+            temp_panel = self.window.create_output_panel(panel_name)
             temp_panel.run_command('append', {'characters': content})
 
             if syntax := sublime.find_syntax_for_file(str(file_path)):
@@ -271,14 +287,33 @@ class AsyncTagScanner(BaseCommentProcessor):
 
             yield temp_panel
         finally:
+            # Immediately destroy the panel after use
             if temp_panel:
-                self.window.destroy_output_panel('_colored_comments_temp_view')
+                self.window.destroy_output_panel(panel_name)
+
+    async def _read_file_async(self, file_path: Path) -> Optional[str]:
+        """Read file content asynchronously to avoid blocking UI."""
+        try:
+            # Direct file I/O without async sleeps (they were causing 3+ second delays)
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            return content
+        except Exception as e:
+            log.debug(f"Error reading file {file_path}: {e}")
+            return None
+
+
 
     async def _scan_file(self, file_path: Path, tag_filter: Optional[str]) -> List[TagResult]:
         """Scan a single file for tags."""
+        return await self._scan_file_with_unique_panel(file_path, '_colored_comments_temp_view', tag_filter)
+
+    async def _scan_file_with_unique_panel(self, file_path: Path, panel_name: str, tag_filter: Optional[str]) -> List[TagResult]:
+        """Scan a single file for tags using a unique panel name."""
         results = []
         try:
-            async with self._get_view_for_file(file_path) as view:
+            async with self._get_view_for_file(file_path, panel_name) as view:
                 if not view:
                     return results
 
@@ -294,6 +329,7 @@ class AsyncTagScanner(BaseCommentProcessor):
 
                         if tag_results := await self._process_comment_line(line, line_num, file_path, tag_filter):
                             results.extend(tag_results)
+                            
 
         except Exception as e:
             log.debug(f"Error scanning file {file_path}: {e}")
@@ -323,6 +359,273 @@ class AsyncTagScanner(BaseCommentProcessor):
                 ))
 
         return results
+
+
+class TagIndex:
+    """Real-time index of comment tags across the project."""
+    
+    def __init__(self):
+        self._index: Dict[str, List[TagResult]] = {}  # file_path -> [TagResult]
+        self._tag_index: Dict[str, List[TagResult]] = {}  # tag_name -> [TagResult]
+        self._file_timestamps: Dict[str, float] = {}  # file_path -> last_modified
+        self._lock = threading.RLock()
+        self._indexed_folders: Set[str] = set()
+        self._is_indexing = False
+        log.debug("TagIndex initialized")
+
+    def is_indexed(self, folders: List[str]) -> bool:
+        """Check if the current project folders are already indexed."""
+        with self._lock:
+            return set(folders).issubset(self._indexed_folders)
+
+    def is_indexing(self) -> bool:
+        """Check if indexing is currently in progress."""
+        return self._is_indexing
+
+    async def build_initial_index(self, window: sublime.Window) -> None:
+        """Build initial index for all project files."""
+        if self._is_indexing:
+            sublime.status_message("Tag index already building...")
+            return
+            
+        folders = window.folders()
+        if not folders:
+            sublime.status_message("No project folders to index")
+            return
+            
+        if self.is_indexed(folders):
+            sublime.status_message("Tag index already up to date")
+            return
+
+        self._is_indexing = True
+        start_time = time.time()
+        
+        try:
+            log.debug(f"Building initial tag index for {len(folders)} folders")
+            sublime.status_message("🔍 Initializing tag index...")
+            
+            scanner = AsyncTagScanner(window)
+            
+            # Get all files to index
+            sublime.status_message("🔍 Scanning project files...")
+            files = await FileScanner.get_project_files(folders)
+            log.debug(f"Found {len(files)} files to index")
+            
+            if not files:
+                sublime.status_message("No files found to index")
+                return
+            
+            sublime.status_message(f"🔍 Indexing {len(files)} files...")
+            
+            # Index files in batches - each file gets its own temp panel
+            batch_size = 8  # Larger batches since async sleeps were removed
+            for i in range(0, len(files), batch_size):
+                batch = files[i:i + batch_size]
+                
+                for file_path in batch:
+                    await self._index_file(file_path, scanner)
+                    
+                # Update progress with more detailed info
+                progress = min(100, int(((i + batch_size) / len(files)) * 100))
+                current_tags = self.get_total_tag_count()
+                files_processed = min(i + batch_size, len(files))
+                
+                sublime.status_message(
+                    f"🔍 Building tag index... {progress}% "
+                    f"({files_processed}/{len(files)} files, {current_tags} tags found)"
+                )
+                # await asyncio.sleep(0.02)  # Removed - was causing major delays
+            
+            # Mark folders as indexed
+            with self._lock:
+                self._indexed_folders.update(folders)
+                
+            # Final status with timing info
+            total_tags = self.get_total_tag_count()
+            elapsed = time.time() - start_time
+            
+            if total_tags > 0:
+                sublime.status_message(
+                    f"✅ Tag index built: {total_tags} tags from {len(files)} files "
+                    f"({elapsed:.1f}s)"
+                )
+            else:
+                sublime.status_message("✅ Tag index built: No comment tags found")
+                
+            log.debug(f"Initial tag index complete: {total_tags} tags across {len(files)} files in {elapsed:.1f}s")
+            
+            # Clear status after a few seconds
+            sublime.set_timeout(lambda: sublime.status_message(""), 5000)
+            
+        except Exception as e:
+            log.debug(f"Error building initial index: {e}")
+            sublime.status_message(f"❌ Error building tag index: {str(e)}")
+            sublime.set_timeout(lambda: sublime.status_message(""), 5000)
+        finally:
+            self._is_indexing = False
+
+    async def _index_file(self, file_path: Path, scanner: AsyncTagScanner, force_update: bool = False) -> None:
+        """Index a single file and update the index."""
+        try:
+            file_str = str(file_path)
+            
+            # Check if file needs indexing (new or modified)
+            if not force_update:
+                try:
+                    current_mtime = file_path.stat().st_mtime
+                    with self._lock:
+                        if (file_str in self._file_timestamps and 
+                            self._file_timestamps[file_str] >= current_mtime):
+                            return  # File hasn't changed
+                except OSError:
+                    # File might not exist anymore
+                    self.remove_file_from_index(file_str)
+                    return
+            
+            # Always get fresh timestamp
+            try:
+                current_mtime = file_path.stat().st_mtime
+            except OSError:
+                self.remove_file_from_index(file_str)
+                return
+            
+            # Scan file for tags - this will get fresh line numbers
+            # Use unique panel name for indexing to avoid conflicts
+            panel_name = f'_colored_comments_index_{hash(str(file_path)) % 10000}'
+            results = await scanner._scan_file_with_unique_panel(file_path, panel_name, tag_filter=None)
+            
+            # Update index atomically
+            with self._lock:
+                # Always remove old entries for this file to ensure fresh line numbers
+                self._remove_file_from_internal_index(file_str)
+                
+                # Add new entries with current line numbers
+                if results:
+                    self._index[file_str] = results
+                    
+                    # Update tag index
+                    for result in results:
+                        if result.tag not in self._tag_index:
+                            self._tag_index[result.tag] = []
+                        self._tag_index[result.tag].append(result)
+                
+                # Update timestamp
+                self._file_timestamps[file_str] = current_mtime
+                
+        except Exception as e:
+            log.debug(f"Error indexing file {file_path}: {e}")
+
+    def update_file_index(self, file_path: str, window: sublime.Window) -> None:
+        """Update index for a specific file (called when file is modified)."""
+        if self._is_indexing:
+            return
+            
+        # Run async update in background using sublime_aio
+        def on_update_done(future):
+            try:
+                future.result()
+            except Exception as e:
+                log.debug(f"Error in file index update callback: {e}")
+                
+        sublime_aio.run_coroutine(self._update_file_async(file_path, window)).add_done_callback(on_update_done)
+
+    async def _update_file_async(self, file_path: str, window: sublime.Window) -> None:
+        """Async helper for updating file index."""
+        try:
+            path = Path(file_path)
+            if not path.exists() or FileScanner.should_skip_file(path):
+                with self._lock:
+                    if file_path in self._index:
+                        self.remove_file_from_index(file_path)
+                        sublime.status_message(f"🗑️ Removed {Path(file_path).name} from tag index")
+                        sublime.set_timeout(lambda: sublime.status_message(""), 2000)
+                return
+                
+            scanner = AsyncTagScanner(window)
+            old_count = len(self._index.get(file_path, []))
+            # Force update to ensure fresh line numbers
+            await self._index_file(path, scanner, force_update=True)
+            new_count = len(self._index.get(file_path, []))
+            
+            # Show brief status update for significant changes
+            if new_count != old_count:
+                filename = Path(file_path).name
+                if new_count > old_count:
+                    sublime.status_message(f"📝 Updated tag index: +{new_count - old_count} tags in {filename}")
+                elif old_count > 0:
+                    sublime.status_message(f"📝 Updated tag index: -{old_count - new_count} tags in {filename}")
+                else:
+                    sublime.status_message(f"📝 Updated tag index: {filename}")
+                sublime.set_timeout(lambda: sublime.status_message(""), 3000)
+            
+            log.debug(f"Updated index for file: {file_path} ({old_count} -> {new_count} tags)")
+            
+        except Exception as e:
+            log.debug(f"Error updating file index for {file_path}: {e}")
+            sublime.status_message(f"❌ Error updating tag index for {Path(file_path).name}")
+            sublime.set_timeout(lambda: sublime.status_message(""), 3000)
+
+    def remove_file_from_index(self, file_path: str) -> None:
+        """Remove a file from the index (when deleted)."""
+        with self._lock:
+            self._remove_file_from_internal_index(file_path)
+            self._file_timestamps.pop(file_path, None)
+
+    def _remove_file_from_internal_index(self, file_path: str) -> None:
+        """Internal method to remove file from index (assumes lock is held)."""
+        # Remove from main index
+        old_results = self._index.pop(file_path, [])
+        
+        # Remove from tag index
+        for result in old_results:
+            if result.tag in self._tag_index:
+                self._tag_index[result.tag] = [
+                    r for r in self._tag_index[result.tag] 
+                    if r.file != file_path
+                ]
+                if not self._tag_index[result.tag]:
+                    del self._tag_index[result.tag]
+
+    def get_all_tags(self, tag_filter: Optional[str] = None, current_file_only: bool = False, 
+                    current_file_path: Optional[str] = None) -> List[TagResult]:
+        """Get all tags from the index."""
+        with self._lock:
+            results = []
+            
+            if current_file_only and current_file_path:
+                # Get tags only from current file
+                results = self._index.get(current_file_path, [])
+            else:
+                # Get all tags
+                if tag_filter and tag_filter in self._tag_index:
+                    results = self._tag_index[tag_filter][:]
+                else:
+                    for file_results in self._index.values():
+                        results.extend(file_results)
+            
+            # Apply tag filter if specified and not using tag index
+            if tag_filter and not current_file_only:
+                results = [r for r in results if r.tag.lower() == tag_filter.lower()]
+            
+            return results
+
+    def get_total_tag_count(self) -> int:
+        """Get total number of tags in the index."""
+        with self._lock:
+            return sum(len(results) for results in self._index.values())
+
+    def clear_index(self) -> None:
+        """Clear the entire index."""
+        with self._lock:
+            self._index.clear()
+            self._tag_index.clear()
+            self._file_timestamps.clear()
+            self._indexed_folders.clear()
+            log.debug("Tag index cleared")
+
+
+# Global tag index instance
+tag_index = TagIndex()
 
 
 class QuickPanelBuilder:
@@ -530,11 +833,28 @@ class ColoredCommentsEventListener(sublime_aio.ViewEventListener):
         """Handle view modifications."""
         if self.view.settings().get("syntax") not in settings.disabled_syntax:
             await self.manager.apply_decorations()
+            
+            # Update tag index for this file if it has a file path
+            if self.view.file_name():
+                tag_index.update_file_index(self.view.file_name(), self.view.window())
 
     async def on_load(self):
         """Handle view loading."""
         if self.view.settings().get("syntax") not in settings.disabled_syntax:
             await self.manager.apply_decorations()
+            
+            # Check if we need to build index when loading files in a project
+            if self.view.file_name() and self.view.window() and self.view.window().folders():
+                if not tag_index.is_indexed(self.view.window().folders()):
+                    def on_index_done(future):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            log.debug(f"Error building index on file load: {e}")
+                    
+                    sublime_aio.run_coroutine(
+                        tag_index.build_initial_index(self.view.window())
+                    ).add_done_callback(on_index_done)
 
     async def on_activated(self):
         """Handle view activation."""
@@ -544,6 +864,49 @@ class ColoredCommentsEventListener(sublime_aio.ViewEventListener):
     def on_close(self):
         """Handle view closing."""
         self.manager.clear_decorations()
+
+
+class ColoredCommentsWindowEventListener(sublime_plugin.EventListener):
+    """Window-level event listener for tag index management."""
+
+    def on_window_command(self, window, command_name, args):
+        """Handle window commands that might affect project structure."""
+        if command_name in ['new_window', 'close_window', 'open_project', 'close_project']:
+            # Delay to let the window/project state settle
+            sublime.set_timeout(lambda: self._check_index_for_window(window), 200)
+
+    def on_load_project(self, window):
+        """Handle project loading."""
+        sublime.set_timeout(lambda: self._check_index_for_window(window), 300)
+
+    def on_activated(self, view):
+        """Handle view activation - check if we need to build index."""
+        if view and view.window() and view.window().folders():
+            window = view.window()
+            if not tag_index.is_indexed(window.folders()) and not tag_index.is_indexing():
+                def on_index_done(future):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        log.debug(f"Error building index on view activation: {e}")
+                
+                sublime_aio.run_coroutine(
+                    tag_index.build_initial_index(window)
+                ).add_done_callback(on_index_done)
+
+    def _check_index_for_window(self, window):
+        """Check if window needs index building."""
+        if window and window.folders():
+            if not tag_index.is_indexed(window.folders()) and not tag_index.is_indexing():
+                def on_index_done(future):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        log.debug(f"Error building index for window: {e}")
+                
+                sublime_aio.run_coroutine(
+                    tag_index.build_initial_index(window)
+                ).add_done_callback(on_index_done)
 
 
 class ColoredCommentsCommand(sublime_aio.ViewCommand):
@@ -569,11 +932,34 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
             sublime.error_message(f"Unknown tag filter: '{tag_filter}'\nAvailable tags: {available_tags}")
             return
 
-        scanner = AsyncTagScanner(self.window)
-
         try:
-            sublime.status_message("Scanning for comment tags...")
-            results = await scanner.scan_for_tags(tag_filter=tag_filter, current_file_only=current_file_only)
+            # Check if we need to build initial index
+            if not tag_index.is_indexed(self.window.folders()) and not tag_index.is_indexing():
+                sublime.status_message("🔍 Tag index not found, building now...")
+                await tag_index.build_initial_index(self.window)
+            elif tag_index.is_indexing():
+                sublime.status_message("⏳ Waiting for tag index to complete...")
+                # Wait for indexing to complete
+                while tag_index.is_indexing():
+                    await asyncio.sleep(0.1)
+
+            # Get current file path for current_file_only mode
+            current_file_path = None
+            if current_file_only:
+                active_view = self.window.active_view()
+                if active_view and active_view.file_name():
+                    current_file_path = active_view.file_name()
+
+            # Get results from index (very fast!)
+            scope_text = "current file" if current_file_only else "project"
+            filter_text = f" ({tag_filter} tags)" if tag_filter else ""
+            sublime.status_message(f"📋 Loading {scope_text} tags{filter_text}...")
+            
+            results = tag_index.get_all_tags(
+                tag_filter=tag_filter, 
+                current_file_only=current_file_only,
+                current_file_path=current_file_path
+            )
 
             if results:
                 self._show_results(results, tag_filter, current_file_only)
@@ -586,8 +972,8 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
                 sublime.status_message(f"No comment tags found in {scope_text}{filter_text}")
 
         except Exception as e:
-            log.debug(f"Error in tag scanning: {e}")
-            sublime.error_message(f"Error scanning for tags: {str(e)}")
+            log.debug(f"Error in tag listing: {e}")
+            sublime.error_message(f"Error listing tags: {str(e)}")
 
     def _show_results(self, results: List[TagResult], tag_filter=None, current_file_only=False):
         """Show results using optimized components."""
@@ -674,9 +1060,57 @@ def plugin_loaded() -> None:
     load_settings()
     log.set_debug_logging(settings.debug)
     log.debug(f"Colored Comments v{VERSION} loaded with optimized structure")
+    
+    # Initialize tag index for open windows using sublime_aio
+    async def initialize_index_with_delay(delay_ms: int):
+        """Initialize index after a delay to let Sublime settle."""
+        await asyncio.sleep(delay_ms / 1000.0)  # Convert ms to seconds
+        
+        windows_with_folders = [w for w in sublime.windows() if w.folders()]
+        if windows_with_folders:
+            log.debug(f"Initializing tag index for {len(windows_with_folders)} windows with projects (attempt after {delay_ms}ms)")
+            
+            # Process windows concurrently
+            tasks = []
+            for window in windows_with_folders:
+                if not tag_index.is_indexed(window.folders()):
+                    tasks.append(asyncio.create_task(tag_index.build_initial_index(window)))
+            
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+                log.debug(f"Completed initialization for {len(tasks)} windows")
+            else:
+                log.debug("All windows already indexed")
+        else:
+            log.debug(f"No windows with project folders found after {delay_ms}ms delay")
+
+    async def initialize_plugin():
+        """Initialize plugin with multiple attempts."""
+        log.debug("Starting tag index initialization...")
+        
+        # Try initialization at different delays to catch windows that load slowly
+        init_tasks = [
+            asyncio.create_task(initialize_index_with_delay(500)),   # Quick attempt
+            asyncio.create_task(initialize_index_with_delay(1500))   # Delayed attempt
+        ]
+        
+        await asyncio.gather(*init_tasks, return_exceptions=True)
+        log.debug("Plugin initialization tasks completed")
+
+    def on_initialization_done(future):
+        """Callback when initialization completes."""
+        try:
+            future.result()  # This will raise any exceptions that occurred
+            log.debug("Tag index initialization completed successfully")
+        except Exception as e:
+            log.debug(f"Tag index initialization failed: {e}")
+
+    # Initialize plugin on asyncio event loop
+    sublime_aio.run_coroutine(initialize_plugin()).add_done_callback(on_initialization_done)
 
 
 def plugin_unloaded() -> None:
     """Handle plugin unloading."""
     unload_settings()
+    tag_index.clear_index()
     log.debug("Colored Comments unloaded")
