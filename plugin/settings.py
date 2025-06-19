@@ -4,51 +4,6 @@ from collections import OrderedDict
 import sublime
 
 from . import logger as log
-
-default_tags = {
-    "Important": {
-        "scope": "comments.important",
-        "identifier": "!",
-        "icon_emoji": "⚠️",
-        "underline": False,
-        "stippled_underline": False,
-        "squiggly_underline": False,
-        "outline": False,
-        "is_regex": False,
-        "ignorecase": True,
-    },
-    "Deprecated": {
-        "scope": "comments.deprecated",
-        "identifier": "*",
-        "icon_emoji": "⚠️",
-    },
-    "Question": {
-        "scope": "comments.question",
-        "identifier": "?",
-        "icon_emoji": "❓",
-    },
-    "TODO": {
-        "scope": "comments.todo",
-        "identifier": "TODO[:]?|todo[:]?",
-        "is_regex": True,
-        "ignorecase": True,
-        "icon_emoji": "📋",
-    },
-    "FIXME": {
-        "scope": "comments.fixme",
-        "identifier": "FIXME[:]?|fixme[:]?",
-        "is_regex": True,
-        "icon_emoji": "🔧",
-    },
-    "UNDEFINED": {
-        "scope": "comments.undefined",
-        "identifier": "//[:]?",
-        "is_regex": True,
-        "icon_emoji": "❔",
-    }
-}
-
-
 class Settings(object):
     def __init__(self) -> None:
         self.debug = False
@@ -62,6 +17,11 @@ class Settings(object):
         self.tags = dict()
         self.tag_regex = OrderedDict()
         self.region_keys = list()
+        
+        # File scanning settings
+        self.skip_extensions = set()
+        self.skip_dirs = set()
+        self.text_extensions = set()
 
     def get_icon(self) -> str:
         if self.comment_icon_enabled:
@@ -208,10 +168,21 @@ def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
             "Packages/Text/Plain text.tmLanguage"]
     )
     
+    # File scanning settings
+    skip_extensions_list = get_list_setting(settings_obj, "skip_extensions", [])
+    settings.skip_extensions = set(ext.lower() for ext in skip_extensions_list)
+    
+    skip_dirs_list = get_list_setting(settings_obj, "skip_dirs", [])
+    settings.skip_dirs = set(skip_dirs_list)
+
+    log.debug(f"File scanning settings loaded:")
+    log.debug(f"  Skip extensions: {len(settings.skip_extensions)} items")
+    log.debug(f"  Skip directories: {len(settings.skip_dirs)} items")
+    
     # Handle tag merging: default_tags + tags
     # Users can set "default_tags": {} to disable all defaults
     # Users can set "tags": {} to have no additional tags
-    user_default_tags = get_dict_setting(settings_obj, "default_tags", default_tags)
+    user_default_tags = get_dict_setting(settings_obj, "default_tags", {})
     user_custom_tags = get_dict_setting(settings_obj, "tags", {})
     
     # Log tag loading information

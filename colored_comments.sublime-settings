@@ -20,6 +20,68 @@
         "Packages/Markdown/MultiMarkdown.sublime-syntax",
         "Packages/Markdown/Markdown.sublime-syntax"
     ],
+    // File scanning settings for tag search functionality
+    // File extensions to skip when scanning for tags (case-insensitive)
+    "skip_extensions": [
+        // Compiled/Binary files
+        ".pyc",
+        ".pyo",
+        ".class",
+        ".o",
+        ".obj",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        // Archives
+        ".jar",
+        ".war",
+        ".ear",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".7z",
+        // Images
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        // Media files
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        // Documents
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx"
+    ],
+    // Directory names to skip when scanning for tags
+    "skip_dirs": [
+        "__pycache__",
+        ".git",
+        ".svn",
+        ".hg",
+        "node_modules",
+        ".vscode",
+        ".idea",
+        ".vs",
+        "bin",
+        "obj",
+        "build",
+        "dist"
+    ],
     // Default tags provided by the plugin
     // Set to {} to disable all default tags
     "default_tags": {

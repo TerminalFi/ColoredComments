@@ -1,10 +1,8 @@
 import sublime
 import sublime_plugin
 import asyncio
-import os
-import re
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable, Union
+from typing import Optional, Dict, List
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 
@@ -177,47 +175,11 @@ class CommentDecorationManager(BaseCommentProcessor):
 class FileScanner:
     """Handles file scanning operations with optimized filtering."""
 
-    SKIP_EXTENSIONS = {
-        '.pyc', '.pyo', '.class', '.o', '.obj', '.exe', '.dll', '.so', '.dylib',
-        '.jar', '.war', '.ear', '.zip', '.tar', '.gz', '.bz2', '.7z',
-        '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.svg',
-        '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm',
-        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'
-    }
-
-    SKIP_DIRS = {
-        '__pycache__', '.git', '.svn', '.hg', 'node_modules',
-        '.vscode', '.idea', '.vs', 'bin', 'obj', 'build', 'dist'
-    }
-
-    TEXT_EXTENSIONS = {
-        '.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.yaml', '.yml',
-        '.md', '.rst', '.c', '.cpp', '.h', '.hpp', '.java', '.cs', '.php',
-        '.rb', '.go', '.rs', '.swift', '.kt', '.scala', '.sh', '.bat',
-        '.sql', '.r', '.m', '.pl', '.lua', '.vim', '.el', '.clj', '.hs'
-    }
-
     @classmethod
     def should_skip_file(cls, file_path: Path) -> bool:
         """Check if file should be skipped."""
-        return (file_path.suffix.lower() in cls.SKIP_EXTENSIONS or
-                any(part in cls.SKIP_DIRS for part in file_path.parts))
-
-    @classmethod
-    def is_text_file(cls, file_path: Path) -> bool:
-        """Check if file is likely a text file."""
-        if file_path.suffix.lower() in cls.TEXT_EXTENSIONS:
-            return True
-
-        if not file_path.suffix:
-            try:
-                with open(file_path, 'rb') as f:
-                    if chunk := f.read(512):
-                        text_chars = sum(1 for b in chunk if 32 <= b <= 126 or b in (9, 10, 13))
-                        return text_chars / len(chunk) > 0.7
-            except Exception:
-                pass
-        return False
+        return (file_path.suffix.lower() in settings.skip_extensions or
+                any(part in settings.skip_dirs for part in file_path.parts))
 
     @classmethod
     async def get_project_files(cls, folders: List[str]) -> List[Path]:
@@ -229,7 +191,7 @@ class FileScanner:
                 all_files = list(folder_path.rglob('*'))
                 valid_files = [
                     f for f in all_files
-                    if f.is_file() and not cls.should_skip_file(f) and cls.is_text_file(f)
+                    if f.is_file() and not cls.should_skip_file(f)
                 ]
                 files.extend(valid_files)
 
