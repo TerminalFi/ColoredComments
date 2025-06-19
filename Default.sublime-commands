@@ -11,14 +11,6 @@
         }
     },
     {
-        "caption": "Colored Comments: Apply Decorations",
-        "command": "colored_comments"
-    },
-    {
-        "caption": "Colored Comments: Clear Decorations",
-        "command": "colored_comments_clear"
-    },
-    {
         "caption": "Colored Comments: List All Tags",
         "command": "colored_comments_list_tags"
     },

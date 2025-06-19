@@ -149,7 +149,6 @@ class CommentDecorationManager(BaseCommentProcessor):
             if not needs_update and has_existing:
                 return
 
-            self.clear_decorations()
             to_decorate: Dict[str, List[sublime.Region]] = {}
             prev_match = ""
             self._last_region_row = -1
@@ -163,6 +162,7 @@ class CommentDecorationManager(BaseCommentProcessor):
                     if result := await self.process_comment_line(line, reg, line_num, to_decorate, prev_match):
                         prev_match = result
 
+            self.clear_decorations()
             self.apply_region_styles(to_decorate)
             log.debug(f"Decoration process complete for view {self.view.id()}")
 
@@ -452,8 +452,6 @@ class ViewportManager:
         sublime.set_timeout(center_preview, 10)
 
 
-# Simplified Command Classes using the new structure
-
 class ColoredCommentsEditSchemeCommand(sublime_plugin.WindowCommand):
     """Command to edit color scheme with enhanced scheme selection."""
 
@@ -562,14 +560,6 @@ class ColoredCommentsCommand(sublime_aio.ViewCommand):
         sublime.status_message("Comment decorations applied")
 
 
-class ColoredCommentsClearCommand(sublime_plugin.TextCommand):
-    """Clear decorations command."""
-
-    def run(self, edit):
-        CommentDecorationManager(self.view).clear_decorations()
-        sublime.status_message("Comment decorations cleared")
-
-
 class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
     """Enhanced tag listing command with optimized processing."""
 
@@ -660,34 +650,6 @@ class TagFilterInputHandler(sublime_plugin.ListInputHandler):
             ))
 
         return items
-
-
-class ColoredCommentsListCurrentFileTagsCommand(sublime_aio.WindowCommand):
-    """Quick command for current file tags."""
-
-    async def run(self, tag_filter=None):
-        await ColoredCommentsListTagsCommand(self.window).run(
-            tag_filter=tag_filter, current_file_only=True
-        )
-
-    def input(self, args):
-        if "tag_filter" not in args:
-            return TagFilterInputHandler()
-        return None
-
-
-class ColoredCommentsToggleDebugCommand(sublime_plugin.WindowCommand):
-    """Debug toggle command."""
-
-    def run(self):
-        new_debug = not settings.debug
-        settings_obj = sublime.load_settings("colored_comments.sublime-settings")
-        settings_obj.set("debug", new_debug)
-        sublime.save_settings("colored_comments.sublime-settings")
-
-        log.set_debug_logging(new_debug)
-        status = "enabled" if new_debug else "disabled"
-        sublime.status_message(f"Colored Comments: Debug logging {status}")
 
 
 class ColoredCommentsShowLogsCommand(sublime_plugin.WindowCommand):
