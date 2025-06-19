@@ -9,6 +9,7 @@ default_tags = {
     "Important": {
         "scope": "comments.important",
         "identifier": "!",
+        "icon_emoji": "⚠️",
         "underline": False,
         "stippled_underline": False,
         "squiggly_underline": False,
@@ -19,26 +20,31 @@ default_tags = {
     "Deprecated": {
         "scope": "comments.deprecated",
         "identifier": "*",
+        "icon_emoji": "⚠️",
     },
     "Question": {
         "scope": "comments.question",
         "identifier": "?",
+        "icon_emoji": "❓",
     },
     "TODO": {
         "scope": "comments.todo",
         "identifier": "TODO[:]?|todo[:]?",
         "is_regex": True,
         "ignorecase": True,
+        "icon_emoji": "📋",
     },
     "FIXME": {
         "scope": "comments.fixme",
         "identifier": "FIXME[:]?|fixme[:]?",
-        "is_regex": True
+        "is_regex": True,
+        "icon_emoji": "🔧",
     },
     "UNDEFINED": {
         "scope": "comments.undefined",
         "identifier": "//[:]?",
-        "is_regex": True
+        "is_regex": True,
+        "icon_emoji": "❔",
     }
 }
 
@@ -87,6 +93,13 @@ class Settings(object):
             return tag.get("scope")
         scope_name = f"comments.{key.lower()}"
         return scope_name.replace(" ", ".").lower()
+
+    def get_icon_emoji(self, tag_name: str) -> str:
+        """Get the emoji icon for a tag, with fallback to a default emoji."""
+        if tag_name in self.tags:
+            tag = self.tags[tag_name]
+            return tag.get("icon_emoji", "💬")
+        return "💬"
 
 
 _settings_obj = None
@@ -194,7 +207,34 @@ def update_settings(settings: Settings, settings_obj: sublime.Settings) -> None:
         settings_obj, "disabled_syntax", [
             "Packages/Text/Plain text.tmLanguage"]
     )
-    settings.tags = get_dict_setting(settings_obj, "tags", default_tags)
+    
+    # Handle tag merging: default_tags + tags
+    # Users can set "default_tags": {} to disable all defaults
+    # Users can set "tags": {} to have no additional tags
+    user_default_tags = get_dict_setting(settings_obj, "default_tags", default_tags)
+    user_custom_tags = get_dict_setting(settings_obj, "tags", {})
+    
+    # Log tag loading information
+    log.debug(f"Loading default tags: {list(user_default_tags.keys())}")
+    log.debug(f"Loading custom tags: {list(user_custom_tags.keys())}")
+    
+    # Merge default tags with custom tags (custom tags override defaults with same name)
+    merged_tags = {}
+    merged_tags.update(user_default_tags)
+    
+    # Track overrides for logging
+    overridden_tags = []
+    for tag_name, tag_config in user_custom_tags.items():
+        if tag_name in merged_tags:
+            overridden_tags.append(tag_name)
+        merged_tags[tag_name] = tag_config
+    
+    if overridden_tags:
+        log.debug(f"Custom tags overriding defaults: {overridden_tags}")
+    
+    log.debug(f"Final merged tags: {list(merged_tags.keys())}")
+    
+    settings.tags = merged_tags
     settings.tag_regex = _generate_identifier_expression(settings.tags)
     settings.region_keys = _generate_region_keys(settings.tags)
 

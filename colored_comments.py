@@ -764,14 +764,7 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
             # Create minihtml details with enhanced formatting
             # Show the tag type, file context, and a preview
             file_icon = "📄" if result['file'].endswith('.py') else "📝"
-            tag_emoji = {
-                'TODO': "📋",
-                'FIXME': "🔧", 
-                'Important': "⚠️",
-                'Question': "❓",
-                'Deprecated': "⚠️",
-                'UNDEFINED': "❔"
-            }.get(result['tag'], "💬")
+            tag_emoji = settings.get_icon_emoji(result['tag'])
             
             details = [
                 f"<div style='padding: 2px 0;'>"
@@ -833,14 +826,7 @@ class ColoredCommentsListTagsCommand(sublime_aio.WindowCommand):
                 result = results[index]
                 
                 # Show enhanced preview in status bar
-                tag_emoji = {
-                    'TODO': "📋",
-                    'FIXME': "🔧", 
-                    'Important': "⚠️",
-                    'Question': "❓",
-                    'Deprecated': "⚠️",
-                    'UNDEFINED': "❔"
-                }.get(result['tag'], "💬")
+                tag_emoji = settings.get_icon_emoji(result['tag'])
                 
                 preview_line = result['line'].strip()[:100]
                 sublime.status_message(f"{tag_emoji} [{result['tag']}] {preview_line}")
