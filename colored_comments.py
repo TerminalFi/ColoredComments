@@ -160,12 +160,11 @@ class CommentDecorationManager(BaseCommentProcessor):
 
             # Process comment regions in batches
             for region in self.find_comment_regions():
-                for reg in self.view.split_by_newlines(region):
-                    line = self.view.substr(reg)
-                    line_num = self.view.rowcol(reg.begin())[0] + 1
+                line = self.view.substr(region)
+                line_num = self.view.rowcol(region.begin())[0] + 1
 
-                    if result := await self.process_comment_line(line, reg, line_num, to_decorate, prev_match):
-                        prev_match = result
+                if result := await self.process_comment_line(line, region, line_num, to_decorate, prev_match):
+                    prev_match = result
 
             self.clear_decorations()
             self.apply_region_styles(to_decorate)
